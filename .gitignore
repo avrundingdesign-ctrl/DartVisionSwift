@@ -1,0 +1,35 @@
+# macOS
+.DS_Store
+
+# Xcode user data (NIEMALS committen)
+xcuserdata/
+*.xcuserstate
+
+# Xcode workspace
+project.xcworkspace/
+*.xcworkspace
+
+# Derived data (Build-Artefakte)
+DerivedData/
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# CocoaPods
+Pods/
+Podfile.lock
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Misc
+*.swp
+*.lock
+.idea/
