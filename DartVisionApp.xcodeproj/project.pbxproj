@@ -6,13 +6,8 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		89A9C5832ED4B2AB0097D20F /* Heyho.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89A9C5822ED4B2A50097D20F /* Heyho.swift */; };
-/* End PBXBuildFile section */
-
 /* Begin PBXFileReference section */
 		892861662ED49D3800D080BF /* DartVisionApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DartVisionApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		89A9C5822ED4B2A50097D20F /* Heyho.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Heyho.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -37,7 +32,6 @@
 		8928615D2ED49D3800D080BF = {
 			isa = PBXGroup;
 			children = (
-				89A9C5822ED4B2A50097D20F /* Heyho.swift */,
 				892861682ED49D3800D080BF /* DartVisionApp */,
 				892861672ED49D3800D080BF /* Products */,
 			);
@@ -125,7 +119,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				89A9C5832ED4B2AB0097D20F /* Heyho.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
