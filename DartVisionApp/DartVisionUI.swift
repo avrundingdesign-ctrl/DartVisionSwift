@@ -26,6 +26,8 @@ struct DartVisionUI: View {
     @State private var showCorrection = false
     @State private var correctedThrows: [Int] = [] // für spätere Verwendung
     @State private var showModeSelection = false
+    
+    @State private var showCalibratedPopup = false
 
     var body: some View {
         GeometryReader { geo in
@@ -63,8 +65,12 @@ struct DartVisionUI: View {
                             playerList()
                                 .padding(.horizontal, 10)
                                 .transition(.opacity)
+                            
+                            CurrentThrowRow(scores: cameraModel.currentGame.dartScores)
+                                .padding(.horizontal,10)
+                                .padding(.top, 10)
                         }
-
+                        
                         // Kamera-Vorschau (oder Platzhalter)
                         cameraArea()
                             .frame(height: 220)
@@ -131,8 +137,28 @@ struct DartVisionUI: View {
                     .transition(.scale.combined(with: .opacity))
                     .animation(.spring(response: 0.25, dampingFraction: 0.9), value: showCorrection)
                 }
+                calibrationStatusOverlay()
             }
         }
+        .onChange(of: cameraModel.currentGame.keypoints != nil) { hasKeypoints in
+                    if hasKeypoints {
+                        // Keypoints sind da -> Zeige "Kalibriert" kurz an
+                        withAnimation {
+                            showCalibratedPopup = true
+                        }
+                        
+                        // Nach 2 Sekunden ausblenden
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            withAnimation {
+                                showCalibratedPopup = false
+                            }
+                        }
+                    } else {
+                        // Keypoints sind weg (Motion Detector) -> "Warten" kommt automatisch durch die View-Condition
+                        // Wir schalten das Erfolgs-Popup sofort aus, falls es noch an war
+                        showCalibratedPopup = false
+                    }
+                }
     }
     
     private func applyCorrection(_ correctedScore: Int) {
@@ -334,4 +360,55 @@ struct DartVisionUI: View {
             )
         }
     }
+    @ViewBuilder
+        private func calibrationStatusOverlay() -> some View {
+            // Nur anzeigen, wenn Spiel aktiv ist
+            if gameState == .active {
+                VStack {
+                    // Positionierung: Eher oben, damit es auffällt, aber nicht den Score verdeckt
+                    Spacer().frame(height: 60)
+                    
+                    if cameraModel.currentGame.keypoints == nil {
+                        // 🟡 FALL 1: Keine Keypoints -> WARTEN (Dauerhaft)
+                        HStack(spacing: 12) {
+                            ProgressView()
+                                .tint(.black)
+                            Text("Warten auf Kalibrierung...")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.black)
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.yellow)
+                                .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    else if showCalibratedPopup {
+                        // 🟢 FALL 2: Keypoints frisch da -> KALIBRIERT (Kurzzeitig)
+                        HStack(spacing: 12) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 24))
+                            Text("Kalibriert")
+                                .font(.system(size: 18, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.green) // Oder Color.dvPrimary für Lila
+                                .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    
+                    Spacer()
+                }
+                .animation(.easeInOut, value: cameraModel.currentGame.keypoints == nil)
+                .animation(.easeInOut, value: showCalibratedPopup)
+            }
+        }
 }
