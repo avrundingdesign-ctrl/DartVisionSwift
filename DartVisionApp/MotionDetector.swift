@@ -12,7 +12,7 @@ final class MotionDetector: ObservableObject {
     
     // Parameter – ggf. feinjustieren
     private let motionThreshold: Double = 0.08
-    private let requiredStillnessTime: TimeInterval = 1.0
+    private let requiredStillnessTime: TimeInterval = 2.0
 
     init() {
     }

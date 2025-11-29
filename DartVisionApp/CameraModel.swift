@@ -36,21 +36,7 @@ final class CameraModel: NSObject,
     // MARK: - Game Data
     @Published var currentGame = GameData()
     private var lastDartPositions: [(x: CGFloat, y: CGFloat)] = []
-    private var lastTurnPositions: [(x: CGFloat, y: CGFloat)] = []
-    private var awaitingBoardReset = false
-    private var missingDartFrames = 0
-    private let allowedMissingFrames = 2
     private let dartTracker = DartTracker(tolerance: 8)
-
-    func resetTurnState() {
-        lastDartPositions.removeAll()
-        lastTurnPositions.removeAll()
-        awaitingBoardReset = false
-        missingDartFrames = 0
-        dartTracker.reset()
-        currentGame.detectedDarts.removeAll()
-        currentGame.dartScores.removeAll()
-    }
 
     // MARK: - Observer (nur einmal)
     private func observeDeviceStillnessOnce() {
@@ -265,7 +251,6 @@ final class CameraModel: NSObject,
 
     // MARK: - Daten übernehmen
     private func updateFromServer(_ decoded: ServerResponse) {
-        guard isGameActive else { return }
         let k = decoded.keypoints
         let allKeypoints = [k.top, k.right, k.bottom, k.left]
         let hasAllKeypoints = allKeypoints.allSatisfy { $0.count == 2 }
@@ -292,92 +277,111 @@ final class CameraModel: NSObject,
             print("🧊 Board-Keypoints fixiert – neue Keypoints ignoriert.")
         }
 
-        let darts = decoded.darts
-
-        // Darts verarbeiten
-        guard !darts.isEmpty else {
-            if awaitingBoardReset {
-                print("🧹 Board leer erkannt – nächste Runde kann starten.")
-                awaitingBoardReset = false
-                lastTurnPositions.removeAll()
-            }
-
-            if !currentGame.detectedDarts.isEmpty && missingDartFrames < allowedMissingFrames {
-                missingDartFrames += 1
-                print("⏸️ Server meldet nichts, halte letzte \(currentGame.detectedDarts.count) Dart(s) vor.")
-                scheduleSafeRestart(after: 2.0)
-                return
-            }
-
-            missingDartFrames = 0
-            clearCurrentDetections()
-            lastDartPositions = []
+        // 🔹 Wenn keine Darts: Liste leeren, nächstes Foto
+        if decoded.darts.isEmpty {
+            dartTracker.reset()
+            currentGame.detectedDarts.removeAll()
+            currentGame.dartScores.removeAll()
             scheduleSafeRestart(after: 3.0)
             return
         }
 
-        missingDartFrames = 0
-        let mergedDarts = dartTracker.merge(with: darts)
-
+        // 🔹 Darts vorhanden - verarbeiten
+        let mergedDarts = dartTracker.merge(with: decoded.darts)
+        
+        // 🔹 Prüfe: Liste == 3 & wirklich alle neuen Darts neu?
+        if mergedDarts.count == 3 && !lastDartPositions.isEmpty {
+            let newPositions = mergedDarts
+                .map { ($0.position.x, $0.position.y) }
+                .sorted { (a, b) in (a.0 + a.1) < (b.0 + b.1) }
+            
+            let oldSorted = lastDartPositions.sorted { (a, b) in (a.0 + a.1) < (b.0 + b.1) }
+            let tol: CGFloat = 8
+            // Prüfe ob ALLE Darts wirklich neu sind (kein Match)
+            let allDartsAreNew = zip(newPositions, oldSorted).allSatisfy { n, o in
+                abs(n.0 - o.0) >= tol || abs(n.1 - o.1) >= tol
+            }
+            
+            if allDartsAreNew {
+                print("🔄 Alle 3 Darts sind neu → Liste leeren, nur ersten neuen Dart hinzufügen")
+                dartTracker.reset()
+                
+                // Nur den ersten neuen Dart hinzufügen
+                if let firstDart = decoded.darts.first {
+                    let newDart = TrackedDart(
+                        position: CGPoint(x: firstDart.x, y: firstDart.y),
+                        score: firstDart.score
+                    )
+                    // DartTracker intern aktualisieren (über merge mit nur einem Dart)
+                    let singleDartList = [firstDart]
+                    let updated = dartTracker.merge(with: singleDartList)
+                    currentGame.detectedDarts = updated.map { Dart(x: $0.position.x, y: $0.position.y) }
+                    currentGame.dartScores = updated.map { $0.score }
+                }
+                scheduleSafeRestart(after: 3.0)
+                return
+            }
+        }
+        
+        // 🔹 Normale Verarbeitung: Darts zur Anzeige hinzufügen
         currentGame.detectedDarts = mergedDarts.map { Dart(x: $0.position.x, y: $0.position.y) }
-        currentGame.dartScores   = mergedDarts.map { $0.score }
-
-        let newPositions = mergedDarts
-            .map { ($0.position.x, $0.position.y) }
-            .sorted { (a, b) in (a.0 + a.1) < (b.0 + b.1) }
-
+        currentGame.dartScores = mergedDarts.map { $0.score }
+        
         print("🎯 Darts erkannt:", currentGame.detectedDarts.count)
         for (i, dart) in mergedDarts.enumerated() {
             print("→ Dart \(i + 1): \(dart.score)")
         }
-
-        if awaitingBoardReset {
-            let repeated = positionsEqual(newPositions, lastTurnPositions)
-            if repeated {
-                print("🟡 Darts identisch zur letzten Runde – warten bis gezogen.")
-                scheduleSafeRestart(after: 3.0)
-                return
-            }
-
-            if mergedDarts.count < lastTurnPositions.count {
-                print("♻️ Weniger Darts erkannt – Board dürfte geleert sein.")
-                awaitingBoardReset = false
-                lastTurnPositions.removeAll()
-            }
-        }
-
+        
+        // 🔹 Wenn Liste == 3 Darts
         if mergedDarts.count == 3 {
+            // Prüfe auf gleiche Darts (vom vorherigen Spieler)
+            let newPositions = mergedDarts
+                .map { ($0.position.x, $0.position.y) }
+                .sorted { (a, b) in (a.0 + a.1) < (b.0 + b.1) }
+            
             if !lastDartPositions.isEmpty {
-                let sameTurn = positionsEqual(newPositions, lastDartPositions)
-                if sameTurn {
-                    print("🟠 Gleiche Darts wie voriger Capture – keine Doppelzählung.")
+                let oldSorted = lastDartPositions.sorted { (a, b) in (a.0 + a.1) < (b.0 + b.1) }
+                let tol: CGFloat = 8
+                let sameDarts = zip(newPositions, oldSorted).allSatisfy { n, o in
+                    abs(n.0 - o.0) < tol && abs(n.1 - o.1) < tol
+                }
+                if sameDarts {
+                    print("🟡 gleiche Darts vom vorherigen Spieler → überspringe Wurf.")
                     scheduleSafeRestart(after: 3.0)
                     return
                 }
             }
-
+            
+            // Neue Darts erkannt - Positionen speichern für nächste Prüfung
             lastDartPositions = newPositions
-            lastTurnPositions = newPositions
-            awaitingBoardReset = true
-
-            // Score berechnen & ansagen
+            
+            // 🔹 Score berechnen
             let totalScore = mergedDarts.reduce(0) { $0 + $1.score }
             print("🎯 Gesamt-Score:", totalScore)
+            
+            // 🔹 WICHTIG: Darts SOFORT löschen, BEVOR Notification gesendet wird
+            currentGame.detectedDarts.removeAll()
+            currentGame.dartScores.removeAll()
+            dartTracker.reset()
+            // 🔹 lastDartPositions NICHT leeren - wird beim Spielerwechsel geleert!
+            
+            // Ansagen
             prepareAudioForSpeech()
             let utterance = AVSpeechUtterance(string: "\(totalScore)")
             utterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
             utterance.rate = 0.45
             synthesizer.speak(utterance)
-
-            // UI benachrichtigen (Rest-Logik ist in ContentView)
+            
+            // UI benachrichtigen (Bust-Prüfung und Score-Verarbeitung in ContentView)
             DispatchQueue.main.async {
                 NotificationCenter.default.post(name: .didFinishTurn, object: totalScore)
             }
-
-            clearCurrentDetections()
+            
+            // KEIN scheduleSafeRestart hier - das macht handleTurnFinished nach Spielerwechsel
+            return
         }
-
-        // Nach Verarbeitung neu starten – aber nie während TTS
+        
+        // 🔹 Sonst: nächste Runde
         scheduleSafeRestart(after: 3.0)
     }
 
@@ -388,7 +392,7 @@ final class CameraModel: NSObject,
             if self.isSpeaking {
                 print("⏳ Sprach-Ausgabe läuft noch – verschiebe neuen Capture.")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    guard self.isGameActive, !self.isSpeaking, let handler = self.photoHandler else { return }
+                    guard self.isGameActive, !self.isSpeaking else { return }
                     self.stopCapturing()
                     self.startCapturing(photoHandler: handler)
                 }
@@ -396,21 +400,6 @@ final class CameraModel: NSObject,
                 self.stopCapturing()
                 self.startCapturing(photoHandler: handler)
             }
-        }
-    }
-
-    private func clearCurrentDetections() {
-        currentGame.detectedDarts.removeAll()
-        currentGame.dartScores.removeAll()
-        dartTracker.reset()
-    }
-
-    private func positionsEqual(_ lhs: [(CGFloat, CGFloat)],
-                                _ rhs: [(CGFloat, CGFloat)],
-                                tolerance: CGFloat = 8) -> Bool {
-        guard lhs.count == rhs.count else { return false }
-        return zip(lhs, rhs).allSatisfy { a, b in
-            abs(a.0 - b.0) < tolerance && abs(a.1 - b.1) < tolerance
         }
     }
 
@@ -433,6 +422,13 @@ final class CameraModel: NSObject,
                close(a.right, b.right) &&
                close(a.bottom, b.bottom) &&
                close(a.left, b.left)
+    }
+    
+    // MARK: - Spielerwechsel
+    /// Leert die letzten Dart-Positionen beim Spielerwechsel
+    func clearLastDartPositions() {
+        lastDartPositions = []
+        print("🔄 Spielerwechsel: lastDartPositions geleert")
     }
 
     // MARK: - Cleanup

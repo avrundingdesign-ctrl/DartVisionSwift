@@ -55,42 +55,91 @@ struct ContentView: View {
 
         let currentIndex = currentPlayerIndex
         let playerName = players[currentIndex]
-        let startingRemaining = remainingScores.indices.contains(currentIndex) ? remainingScores[currentIndex] : (selectedGame ?? 0)
-        let proposedRemaining = startingRemaining - totalScore
 
         print("💥 \(playerName) wirft \(totalScore) Punkte!")
 
-        // 🧮 Überworfen erkennen (Double Out wird bewusst ignoriert)
-        if proposedRemaining < 0 {
-            speak("Überworfen")
-            remaining = startingRemaining
-        } else {
-            if remainingScores.indices.contains(currentIndex) {
-                remainingScores[currentIndex] = max(proposedRemaining, 0)
-            }
-
-            let rest = remainingScores[currentIndex]
-            remaining = rest
-
-            speak("Rest \(rest)")
-
-            // 🏁 Siegbedingung
-            if rest == 0 {
-                cameraModel.synthesizer.stopSpeaking(at: .immediate)
-                let win = AVSpeechUtterance(string: "\(playerName) hat gewonnen!")
-                win.voice = AVSpeechSynthesisVoice(language: "de-DE")
-                cameraModel.synthesizer.speak(win)
-
-                cameraModel.isGameActive = false
-                cameraModel.stopCapturing()
-                cameraModel.currentGame.keypoints = nil
-                cameraModel.resetTurnState()
-                gameState = .ready
-                return
-            }
+        // 🔹 Bust-Prüfung: Wenn neuer Score > Rest Score → Überworfen
+        guard remainingScores.indices.contains(currentIndex) else { return }
+        let currentRemaining = remainingScores[currentIndex]
+        
+        if totalScore > currentRemaining {
+            print("❌ Überworfen! \(totalScore) > \(currentRemaining)")
+            cameraModel.synthesizer.stopSpeaking(at: .immediate)
+            let bustUtterance = AVSpeechUtterance(string: "Überworfen! Nächster Spieler.")
+            bustUtterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
+            bustUtterance.rate = 0.45
+            cameraModel.synthesizer.speak(bustUtterance)
+            
+            // Nächster Spieler (ohne Score-Änderung)
+            nextPlayer()
+            return
         }
 
-        advanceToNextPlayer()
+        // 🔹 Restscore für den aktuellen Spieler aktualisieren
+        let newRemaining = currentRemaining - totalScore
+        remainingScores[currentIndex] = newRemaining
+        remaining = newRemaining
+
+        // 🏁 Siegbedingung
+        if newRemaining == 0 {
+            // 🔹 Double-Out-Prüfung
+            if doubleOut {
+                // TODO: Prüfen ob letzter Wurf ein Double war
+                // Aktuell wird nur geprüft ob Score == 0, nicht ob es ein Double war
+                // Für vollständige Implementierung müsste der letzte Dart-Score mitgesendet werden
+                print("⚠️ Double-Out aktiv, aber keine Prüfung ob letzter Wurf Double war")
+            }
+            
+            cameraModel.synthesizer.stopSpeaking(at: .immediate)
+            let win = AVSpeechUtterance(string: "\(playerName) hat gewonnen!")
+            win.voice = AVSpeechSynthesisVoice(language: "de-DE")
+            cameraModel.synthesizer.speak(win)
+
+            // Spielstatus sofort deaktivieren (Observer feuert dann auch nicht mehr)
+            cameraModel.isGameActive = false
+
+            // Aufnahme stoppen
+            cameraModel.stopCapturing()
+
+            // 🔹 WICHTIG: Board- und Dart-Daten leeren
+            cameraModel.currentGame.keypoints = nil
+            cameraModel.currentGame.detectedDarts.removeAll()
+            cameraModel.currentGame.dartScores.removeAll()
+            cameraModel.clearLastDartPositions()
+
+            // UI zurück
+            gameState = .ready
+            return
+        }
+
+        // 🔊 Sprachansage Restpunkte (Race vermeiden)
+        cameraModel.synthesizer.stopSpeaking(at: .immediate)
+        let restUtterance = AVSpeechUtterance(string: "Rest \(newRemaining)")
+        restUtterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
+        restUtterance.rate = 0.45
+        cameraModel.synthesizer.speak(restUtterance)
+
+        // 🔄 Nächster Spieler
+        nextPlayer()
+    }
+    
+    // MARK: - Spielerwechsel
+    private func nextPlayer() {
+        // 🔹 WICHTIG: lastDartPositions beim Spielerwechsel leeren
+        cameraModel.clearLastDartPositions()
+        
+        // Spieler wechseln
+        currentPlayerIndex = (currentPlayerIndex + 1) % players.count
+        print("➡️ Nächster Spieler: \(players[currentPlayerIndex])")
+
+        // Pipeline neu starten nach 4 Sekunden
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+            if let handler = self.cameraModel.photoHandler {
+                print("🔁 Nächster Spieler – starte neue Aufnahme.")
+                self.cameraModel.stopCapturing()
+                self.cameraModel.startCapturing(photoHandler: handler)
+            }
+        }
     }
 
     // MARK: - Game Controls
@@ -102,7 +151,6 @@ struct ContentView: View {
 
         // 🧹 Board- und Dart-Daten leeren + Spielerstart
         cameraModel.currentGame = GameData()
-        cameraModel.resetTurnState()
         currentPlayerIndex = 0
 
         if players.isEmpty {
@@ -122,7 +170,6 @@ struct ContentView: View {
     private func stopGame() {
         cameraModel.isGameActive = false
         cameraModel.stopCapturing()
-        cameraModel.resetTurnState()
         gameState = .ready
     }
 
@@ -136,28 +183,6 @@ struct ContentView: View {
             cameraModel.isGameActive = false
             cameraModel.stopCapturing()
         }
-    }
-
-    private func advanceToNextPlayer() {
-        guard !players.isEmpty else { return }
-        currentPlayerIndex = (currentPlayerIndex + 1) % players.count
-        print("➡️ Nächster Spieler: \(players[currentPlayerIndex])")
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-            if let handler = self.cameraModel.photoHandler {
-                print("🔁 Nächster Spieler – starte neue Aufnahme.")
-                self.cameraModel.stopCapturing()
-                self.cameraModel.startCapturing(photoHandler: handler)
-            }
-        }
-    }
-
-    private func speak(_ text: String) {
-        cameraModel.synthesizer.stopSpeaking(at: .immediate)
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
-        utterance.rate = 0.45
-        cameraModel.synthesizer.speak(utterance)
     }
 }
 
