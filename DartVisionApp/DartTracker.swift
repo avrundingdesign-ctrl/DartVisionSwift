@@ -1,86 +1,73 @@
+import Foundation
 import CoreGraphics
 
-struct TrackedDart: Equatable {
-    var position: CGPoint
-    var score: Int
+// 1. Das Enum definieren (außerhalb der Klasse)
+enum ScanResult {
+    case sameRound           // Bedeutet: "Warte, alte Runde noch aktiv"
+    case update([DartData])  // Bedeutet: "Hier ist die neue Liste"
 }
 
-final class DartTracker {
-    private var tracked: [TrackedDart] = []
-    private let tolerance: CGFloat
-
-    init(tolerance: CGFloat) {
-        self.tolerance = tolerance
+class DartTracker {
+    
+    private var history: [DartData] = []
+    private let tolerance: CGFloat = 20.0
+    private let maxDarts = 3
+    
+    var onScoresUpdated: (([Int]) -> Void)?
+    
+    // Rückgabetyp ist jetzt unser Enum "ScanResult"
+    func merge(with newDarts: [DartData]) -> ScanResult {
+        
+        // ---------------------------------------------------------
+        // SCHRITT 1: Check auf "Alte Runde"
+        // ---------------------------------------------------------
+        if history.count == maxDarts {
+            
+            // Prüfen: Gibt es eine Verbindung zu alten Darts?
+            let connectionFound = newDarts.contains { newDart in
+                history.contains { oldDart in
+                    hypot(oldDart.x - newDart.x, oldDart.y - newDart.y) < tolerance
+                }
+            }
+            
+            // WENN Liste voll (3) UND alter Dart erkannt:
+            // -> SOFORT ABBRECHEN und Signal "sameRound" senden.
+            if connectionFound {
+                return .sameRound
+            }
+            
+            // Wenn wir hier ankommen, war die Liste voll, aber KEIN alter Dart da.
+            // -> Das heißt: Pfeile wurden gezogen -> Reset.
+            print("♻️ Reset: Neue Runde erkannt.")
+            history.removeAll()
+            onScoresUpdated?([])
+        }
+        
+        // ---------------------------------------------------------
+        // SCHRITT 2: Neue Darts hinzufügen (nur wenn oben nicht abgebrochen)
+        // ---------------------------------------------------------
+        for newDart in newDarts {
+            // Stop, wenn voll
+            if history.count >= maxDarts { break }
+            
+            // Stop, wenn Duplikat
+            let isDuplicate = history.contains { oldDart in
+                hypot(oldDart.x - newDart.x, oldDart.y - newDart.y) < tolerance
+            }
+            
+            if !isDuplicate {
+                history.append(newDart)
+                let currentScores = history.map { $0.score }
+                onScoresUpdated?(currentScores)
+            }
+        }
+        
+        // Wir geben das Signal "update" mit der neuen Liste zurück
+        return .update(history)
     }
-
+    
     func reset() {
-        tracked.removeAll()
-    }
-
-    func merge(with detections: [DartData]) -> [TrackedDart] {
-        guard !detections.isEmpty else { return tracked }
-
-        var usedIndices = Set<Int>()
-        var updated: [TrackedDart] = []
-        var unmatchedOld: [TrackedDart] = []
-
-        for old in tracked {
-            if let matchIndex = nearestMatch(for: old, in: detections, excluding: usedIndices) {
-                usedIndices.insert(matchIndex)
-                let match = detections[matchIndex]
-                updated.append(TrackedDart(position: CGPoint(x: match.x, y: match.y),
-                                           score: match.score))
-            } else {
-                unmatchedOld.append(old)
-            }
-        }
-
-        let remainingIndices = detections.indices
-            .filter { !usedIndices.contains($0) }
-            .sorted { lhs, rhs in
-                let left = detections[lhs]
-                let right = detections[rhs]
-                return (left.x + left.y) < (right.x + right.y)
-            }
-
-        for index in remainingIndices {
-            let data = detections[index]
-            if updated.count < 3 {
-                updated.append(TrackedDart(position: CGPoint(x: data.x, y: data.y),
-                                           score: data.score))
-            }
-        }
-
-        if updated.count < 3 {
-            for old in unmatchedOld {
-                if updated.count >= 3 { break }
-                updated.append(old)
-            }
-        }
-
-        tracked = updated
-        return tracked
-    }
-
-    private func nearestMatch(for dart: TrackedDart,
-                              in detections: [DartData],
-                              excluding used: Set<Int>) -> Int? {
-        var bestIndex: Int?
-        var bestDistance = CGFloat.greatestFiniteMagnitude
-
-        for (index, detection) in detections.enumerated() where !used.contains(index) {
-            let dx = dart.position.x - detection.x
-            let dy = dart.position.y - detection.y
-            let distance = sqrt(dx * dx + dy * dy)
-
-            guard distance <= tolerance else { continue }
-
-            if distance < bestDistance {
-                bestDistance = distance
-                bestIndex = index
-            }
-        }
-
-        return bestIndex
+        history.removeAll()
+        onScoresUpdated?([])
     }
 }

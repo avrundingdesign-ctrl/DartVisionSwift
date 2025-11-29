@@ -6,6 +6,7 @@ enum GameState { case idle, ready, active }
 
 struct ContentView: View {
     @StateObject private var cameraModel = CameraModel()
+    @State private var liveScores: [Int] = []
     @State private var gameState: GameState = .idle
     @State private var selectedGame: Int? = 301           // ✅ Standard 301
     @State private var remaining: Int = 0
@@ -28,6 +29,7 @@ struct ContentView: View {
             doubleOut: $doubleOut,
             currentPlayerIndex: $currentPlayerIndex,
             remainingScores: $remainingScores,
+            currentScores: liveScores,
             startAction: startGame,
             stopAction: stopGame,
             pauseAction: togglePause,
@@ -39,7 +41,12 @@ struct ContentView: View {
 
         .onAppear {
             cameraModel.configure()
-
+            
+            cameraModel.dartTracker.onScoresUpdated = { newScores in
+                        DispatchQueue.main.async {
+                            self.liveScores = newScores
+                        }
+                    }
             // Beobachte Ereignis "Zug beendet"
             NotificationCenter.default.addObserver(forName: .didFinishTurn, object: nil, queue: .main) { notif in
                 if let total = notif.object as? Int {

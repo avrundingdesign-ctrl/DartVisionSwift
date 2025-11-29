@@ -11,6 +11,8 @@ struct DartVisionUI: View {
     @Binding var currentPlayerIndex: Int
     @Binding var remainingScores: [Int]
 
+    var currentScores: [Int]
+    
     // MARK: - Actions
     var startAction: () -> Void
     var stopAction: () -> Void
@@ -66,7 +68,7 @@ struct DartVisionUI: View {
                                 .padding(.horizontal, 10)
                                 .transition(.opacity)
                             
-                            CurrentThrowRow(scores: cameraModel.currentGame.dartScores)
+                            CurrentThrowRow(scores: currentScores)
                                 .padding(.horizontal,10)
                                 .padding(.top, 10)
                         }
