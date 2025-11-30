@@ -1,4 +1,4 @@
-import SwiftUI
+/*import SwiftUI
 import AVFoundation
 import Foundation
 
@@ -11,17 +11,14 @@ struct ContentView: View {
     @State private var selectedGame: Int? = 301           // ✅ Standard 301
     @State private var remaining: Int = 0
     @State private var isPaused: Bool = false
-    
-    let dartTracker = DartTracker()
-    
+
+
     // DartVisionUI-States
     @State private var players: [String] = []
     @State private var remainingScores: [Int] = []
     @State private var currentPlayerIndex = 0
     @State private var doubleOut: Bool = false
-    @State private var showWinOverlay = false
-    @State private var winnerName: String?
-    
+
     var body: some View {
         DartVisionUI(
             gameState: $gameState,
@@ -46,19 +43,17 @@ struct ContentView: View {
             cameraModel.configure()
             
             cameraModel.dartTracker.onScoresUpdated = { newScores in
-                DispatchQueue.main.async {
-                    self.liveScores = newScores
-                }
-            }
+                        DispatchQueue.main.async {
+                            self.liveScores = newScores
+                        }
+                    }
             // Beobachte Ereignis "Zug beendet"
             NotificationCenter.default.addObserver(forName: .didFinishTurn, object: nil, queue: .main) { notif in
                 if let total = notif.object as? Int {
                     handleTurnFinished(with: total)
                 }
             }
-
         }
-        
     }
 
     // MARK: - Spielzug-Logik
@@ -67,81 +62,62 @@ struct ContentView: View {
 
         let currentIndex = currentPlayerIndex
         let playerName = players[currentIndex]
-        
-        // Aktuellen Rest des Spielers holen
-        let currentRest = remainingScores[currentIndex]
-        
-        // 1. Neuen Rest berechnen (provisorisch)
-        let newRest = currentRest - totalScore
-        
-        print("💥 \(playerName) wirft \(totalScore). Alter Rest: \(currentRest) -> Neu: \(newRest)")
 
-        // Laufende Sprachausgabe stoppen
-        cameraModel.synthesizer.stopSpeaking(at: .immediate)
+        print("💥 \(playerName) wirft \(totalScore) Punkte!")
 
-        // 2. Die 3 Fälle behandeln
-        if newRest < 0 {
-            // --- FALL 1: ÜBERWORFEN (Bust) ---
-            print("❌ Überworfen! Score bleibt bei \(currentRest).")
-            
-            let bustUtterance = AVSpeechUtterance(string: "Überworfen")
-            bustUtterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
-            cameraModel.synthesizer.speak(bustUtterance)
-            
-            // Score NICHT aktualisieren (wir behalten currentRest)
-            // Direkt zum nächsten Spieler
-            currentPlayerIndex = (currentPlayerIndex + 1) % players.count
-            
-        } else if newRest == 0 {
-            let playerName = players[currentPlayerIndex]
-            
-            // 1. Score auf 0 setzen
-            remainingScores[currentPlayerIndex] = 0
-            remaining = 0
-            
-            
-            // 3. Aufnahme stoppen und Overlay zeigen
-            cameraModel.isGameActive = false
-            cameraModel.stopCapturing()
-            
-            self.winnerName = playerName
-            withAnimation(.spring()) {
-                self.showWinOverlay = true
-            }
-            finishGame()
-            
-            
-            
-            
-            
-        } else {
-            // --- FALL 3: NORMAL WEITER (Rest > 0) ---
-            print("✅ Gültiger Wurf. Rest: \(newRest)")
-            
-            // Score aktualisieren
-            remainingScores[currentIndex] = newRest
-            remaining = newRest
-            
-            let restUtterance = AVSpeechUtterance(string: "Rest \(newRest)")
-            restUtterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
-            restUtterance.rate = 0.45
-            cameraModel.synthesizer.speak(restUtterance)
-            
-            // Nächster Spieler
-            currentPlayerIndex = (currentPlayerIndex + 1) % players.count
+        // 🔹 Restscore für den aktuellen Spieler aktualisieren
+        if remainingScores.indices.contains(currentIndex) {
+            remainingScores[currentIndex] = max(remainingScores[currentIndex] - totalScore, 0)
         }
-    }
-    private func finishGame() {
-        cameraModel.isGameActive = false
-        cameraModel.stopCapturing()
-        cameraModel.currentGame.keypoints = nil
-        cameraModel.dartTracker.reset() // Tracker Reset
-        self.liveScores = []
-        gameState = .ready
-        
-        // Popup schließen
-        self.showWinOverlay = false
-        self.winnerName = nil
+
+        let rest = remainingScores[currentIndex]
+        remaining = rest
+
+        // 🔊 Sprachansage Restpunkte (Race vermeiden)
+        cameraModel.synthesizer.stopSpeaking(at: .immediate)
+        let restUtterance = AVSpeechUtterance(string: "Rest \(rest)")
+        restUtterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
+        restUtterance.rate = 0.45
+        cameraModel.synthesizer.speak(restUtterance)
+
+        // 🏁 Siegbedingung
+        // 🏁 Siegbedingung
+        if rest == 0 {
+            cameraModel.synthesizer.stopSpeaking(at: .immediate)
+            let win = AVSpeechUtterance(string: "\(playerName) hat gewonnen!")
+            win.voice = AVSpeechSynthesisVoice(language: "de-DE")
+            cameraModel.synthesizer.speak(win)
+
+            // Spielstatus sofort deaktivieren (Observer feuert dann auch nicht mehr)
+            cameraModel.isGameActive = false
+
+            // Aufnahme stoppen
+            cameraModel.stopCapturing()
+
+            // 🔹 WICHTIG: Board- und Dart-Daten leeren
+            cameraModel.currentGame.keypoints = nil
+            cameraModel.currentGame.detectedDarts.removeAll()
+            cameraModel.currentGame.dartScores.removeAll()
+
+            // UI zurück
+            gameState = .ready
+            return
+        }
+
+
+        // 🔄 Nächster Spieler
+        currentPlayerIndex = (currentPlayerIndex + 1) % players.count
+        print("➡️ Nächster Spieler: \(players[currentPlayerIndex])")
+
+        // (Optional) Du triggerst keinen neuen Timer hier – CameraModel hat seinen eigenen Timer.
+        // Falls du dennoch die Pipeline neu starten willst:
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+            if let handler = self.cameraModel.photoHandler {
+                print("🔁 Nächster Spieler – starte neue Aufnahme.")
+                self.cameraModel.stopCapturing()
+                self.cameraModel.startCapturing(photoHandler: handler)
+            }
+        }
     }
 
     // MARK: - Game Controls
@@ -205,4 +181,4 @@ private func resetServerState() {
         }
     }.resume()
 }
-
+*/
