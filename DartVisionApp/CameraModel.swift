@@ -292,10 +292,24 @@ final class CameraModel: NSObject,
                 scheduleSafeRestart(after: 3.0)
 
             case .update(let currentDarts):
-                
+                if currentDarts.count == 1 {
+                    let Score = currentDarts[0].score
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(name: .Throw, object: Score)
+                    }
+                }
+                if currentDarts.count == 2 {
+                    let Score = currentDarts[1].score
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(name: .Throw, object: Score)
+                    }
+                }
+        
                 if currentDarts.count == 3 {
                     // Reihenfolgen-robuster Vergleich + moderate Toleranz
-                        
+                    let Score = currentDarts[2].score
+                    
+                    
                     // Score berechnen & ansagen
                     let totalScore = currentDarts.reduce(0) { $0 + $1.score }
                     print("🎯 Gesamt-Score:", totalScore)
@@ -308,11 +322,8 @@ final class CameraModel: NSObject,
                     
                     // UI benachrichtigen (Rest-Logik ist in ContentView)
                     DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: .didFinishTurn, object: totalScore)
+                        NotificationCenter.default.post(name: .didFinishTurn, object: Score)
                     }
-
-
-
                 }
             }
 

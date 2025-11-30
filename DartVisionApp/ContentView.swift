@@ -66,11 +66,65 @@ struct ContentView: View {
                     handleTurnFinished(with: total)
                 }
             }
+            NotificationCenter.default.addObserver(forName: .Throw, object: nil, queue: .main) { notif in
+                if let score = notif.object as? Int {
+                    thrown(with: score)
+                }
+            }
 
         }
         
     }
+    private func thrown(with Score: Int) {
+        guard !players.isEmpty else { return }
 
+        let currentIndex = currentPlayerIndex
+        let playerName = players[currentIndex]
+        
+        // Aktuellen Rest des Spielers holen
+        let currentRest = remainingScores[currentIndex]
+        
+        // 1. Neuen Rest berechnen (provisorisch)
+        let newRest = currentRest - Score
+        
+        if newRest < 0 {
+            // --- FALL 1: ÜBERWORFEN (Bust) ---
+            print("❌ Überworfen! Score bleibt bei \(currentRest).")
+            
+            let bustUtterance = AVSpeechUtterance(string: "Überworfen")
+            bustUtterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
+            cameraModel.synthesizer.speak(bustUtterance)
+            
+            // Score NICHT aktualisieren (wir behalten currentRest)
+            // Direkt zum nächsten Spieler
+            currentPlayerIndex = (currentPlayerIndex + 1) % players.count
+            
+        } else if newRest == 0 {
+            let playerName = players[currentPlayerIndex]
+            
+            // 1. Score auf 0 setzen
+            remainingScores[currentPlayerIndex] = 0
+            remaining = 0
+            
+            
+            // 3. Aufnahme stoppen und Overlay zeigen
+            cameraModel.isGameActive = false
+            cameraModel.stopCapturing()
+            
+            self.winnerName = playerName
+            withAnimation(.spring()) {
+                self.showWinOverlay = true
+            }
+            
+        } else {
+            // --- FALL 3: NORMAL WEITER (Rest > 0) ---
+            
+            // Score aktualisieren
+            remainingScores[currentIndex] = newRest
+            remaining = newRest
+                        
+        }
+    }
     // MARK: - Spielzug-Logik
     private func handleTurnFinished(with totalScore: Int) {
         guard !players.isEmpty else { return }
@@ -118,11 +172,6 @@ struct ContentView: View {
             withAnimation(.spring()) {
                 self.showWinOverlay = true
             }
-            
-            
-            
-            
-            
             
         } else {
             // --- FALL 3: NORMAL WEITER (Rest > 0) ---
