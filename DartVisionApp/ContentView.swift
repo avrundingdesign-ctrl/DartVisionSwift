@@ -23,25 +23,35 @@ struct ContentView: View {
     @State private var winnerName: String?
     
     var body: some View {
-        DartVisionUI(
-            gameState: $gameState,
-            selectedGame: $selectedGame,
-            remaining: $remaining,
-            isPaused: $isPaused,
-            players: $players,
-            doubleOut: $doubleOut,
-            currentPlayerIndex: $currentPlayerIndex,
-            remainingScores: $remainingScores,
-            currentScores: liveScores,
-            startAction: startGame,
-            stopAction: stopGame,
-            pauseAction: togglePause,
-            uploadHandler: cameraModel.uploadImageToServer,
-            // ⬇️ correctionAction MUSS vor cameraModel kommen
-            correctionAction: { /* TODO: Funktion kommt später */ },
-            cameraModel: cameraModel
-        )
-
+        ZStack{
+            DartVisionUI(
+                gameState: $gameState,
+                selectedGame: $selectedGame,
+                remaining: $remaining,
+                isPaused: $isPaused,
+                players: $players,
+                doubleOut: $doubleOut,
+                currentPlayerIndex: $currentPlayerIndex,
+                remainingScores: $remainingScores,
+                currentScores: liveScores,
+                startAction: startGame,
+                stopAction: stopGame,
+                pauseAction: togglePause,
+                uploadHandler: cameraModel.uploadImageToServer,
+                // ⬇️ correctionAction MUSS vor cameraModel kommen
+                correctionAction: { /* TODO: Funktion kommt später */ },
+                cameraModel: cameraModel
+            )
+            if showWinOverlay, let winner = winnerName {
+                        WinOverlayView(winnerName: winner) {
+                            // Diese Aktion wird erst ausgeführt, wenn der User den Button drückt
+                            finishGame()
+                        }
+                        .zIndex(10) // Ganz nach oben legen
+                        .transition(.opacity) // Schickes Einblenden
+                    }
+            
+        }
         .onAppear {
             cameraModel.configure()
             
@@ -108,7 +118,7 @@ struct ContentView: View {
             withAnimation(.spring()) {
                 self.showWinOverlay = true
             }
-            finishGame()
+            
             
             
             
