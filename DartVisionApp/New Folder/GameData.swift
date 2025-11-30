@@ -5,6 +5,7 @@ import CoreGraphics
 enum GameMode: String, CaseIterable, Identifiable {
     case x301 = "301"
     case x501 = "501"
+    case x10 = "10"
     case cricket = "Cricket"
     case aroundTheClock = "Around the Clock"
     
