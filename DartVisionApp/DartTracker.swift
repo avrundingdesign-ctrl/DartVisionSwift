@@ -12,11 +12,10 @@ class DartTracker {
     private var history: [DartData] = []
     private let tolerance: CGFloat = 20.0
     private let maxDarts = 3
-    
     var onScoresUpdated: (([Int]) -> Void)?
     
     // Rückgabetyp ist jetzt unser Enum "ScanResult"
-    func merge(with newDarts: [DartData]) -> ScanResult {
+    func merge(with newDarts: [DartData], isBusted: Bool) -> ScanResult {
         
         // ---------------------------------------------------------
         // SCHRITT 1: Check auf "Alte Runde"
@@ -51,10 +50,12 @@ class DartTracker {
             if history.count >= maxDarts { break }
             
             // Stop, wenn Duplikat
-            let isDuplicate = history.contains { oldDart in
+            let isDuplicate = history.contains{ oldDart in
                 hypot(oldDart.x - newDart.x, oldDart.y - newDart.y) < tolerance
             }
-            
+            if isDuplicate && isBusted{
+                return .sameRound
+            }
             if !isDuplicate {
                 history.append(newDart)
                 let currentScores = history.map { $0.score }

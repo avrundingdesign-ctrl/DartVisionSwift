@@ -11,7 +11,6 @@ struct ContentView: View {
     @State private var selectedGame: Int? = 301           // ✅ Standard 301
     @State private var remaining: Int = 0
     @State private var isPaused: Bool = false
-    
     let dartTracker = DartTracker()
     
     // DartVisionUI-States
@@ -88,6 +87,7 @@ struct ContentView: View {
         let newRest = currentRest - Score
         
         if newRest < 0 {
+            cameraModel.isThrowBusted = true
             // --- FALL 1: ÜBERWORFEN (Bust) ---
             print("❌ Überworfen! Score bleibt bei \(currentRest).")
             
@@ -105,7 +105,7 @@ struct ContentView: View {
             // 1. Score auf 0 setzen
             remainingScores[currentPlayerIndex] = 0
             remaining = 0
-            
+            cameraModel.isThrowBusted = false
             
             // 3. Aufnahme stoppen und Overlay zeigen
             cameraModel.isGameActive = false
@@ -122,6 +122,9 @@ struct ContentView: View {
             // Score aktualisieren
             remainingScores[currentIndex] = newRest
             remaining = newRest
+            cameraModel.isThrowBusted = false
+            
+            
                         
         }
     }
@@ -147,7 +150,7 @@ struct ContentView: View {
         if newRest < 0 {
             // --- FALL 1: ÜBERWORFEN (Bust) ---
             print("❌ Überworfen! Score bleibt bei \(currentRest).")
-            
+            cameraModel.isThrowBusted = true
             let bustUtterance = AVSpeechUtterance(string: "Überworfen")
             bustUtterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
             cameraModel.synthesizer.speak(bustUtterance)
@@ -163,7 +166,7 @@ struct ContentView: View {
             remainingScores[currentPlayerIndex] = 0
             remaining = 0
             
-            
+            cameraModel.isThrowBusted = false
             // 3. Aufnahme stoppen und Overlay zeigen
             cameraModel.isGameActive = false
             cameraModel.stopCapturing()
@@ -176,7 +179,7 @@ struct ContentView: View {
         } else {
             // --- FALL 3: NORMAL WEITER (Rest > 0) ---
             print("✅ Gültiger Wurf. Rest: \(newRest)")
-            
+            cameraModel.isThrowBusted = false
             // Score aktualisieren
             remainingScores[currentIndex] = newRest
             remaining = newRest

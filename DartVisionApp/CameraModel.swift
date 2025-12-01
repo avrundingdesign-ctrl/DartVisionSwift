@@ -23,6 +23,7 @@ final class CameraModel: NSObject,
     private var didInstallStillObserver = false
     private var isCapturingNow = false
     @Published var isGameActive = true
+    @Published var isThrowBusted = false
     @Published private(set) var isSpeaking = false
 
     // MARK: - Sprache
@@ -280,19 +281,20 @@ final class CameraModel: NSObject,
 
         // Darts verarbeiten
         if !decoded.darts.isEmpty {
-
+  
             // Funktionsaufruf
-            let result = dartTracker.merge(with: decoded.darts)
+            let result = dartTracker.merge(with: decoded.darts, isBusted: self.isThrowBusted)
 
             switch result {
                 
             case .sameRound:
-                // Das ist dein "Alt"-Fall
+                // Wenn Liste = 3 && Dann leicher Dart in der nächsten Runde,
                 print("Alte Runde erkannt (3 Darts stecken noch).")
                 scheduleSafeRestart(after: 3.0)
 
             case .update(let currentDarts):
                 if currentDarts.count == 1 {
+                    
                     let Score = currentDarts[0].score
                     DispatchQueue.main.async {
                         NotificationCenter.default.post(name: .Throw, object: Score)
