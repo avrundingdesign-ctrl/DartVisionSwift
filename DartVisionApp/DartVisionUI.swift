@@ -18,7 +18,7 @@ struct DartVisionUI: View {
     var stopAction: () -> Void
     var pauseAction: () -> Void
     var uploadHandler: (UIImage) -> Void
-    var correctionAction: () -> Void = {}   // optional: Logik später
+    var correctionAction: (Int) -> Void  // optional: Logik später
 
     // MARK: - Models
     @ObservedObject var cameraModel: CameraModel
@@ -126,13 +126,13 @@ struct DartVisionUI: View {
                 if showCorrection {
                     ScoreCorrectionView(
                         onConfirm: { total in
-                            applyCorrection(total)   // 🧮 Score anpassen
-                            isPaused = false          // 🟢 Spiel fortsetzen
-                            showCorrection = false    // Fenster schließen
+                            correctionAction(total) // ✅ Gibt den Wert an ContentView weiter
+                            isPaused = false
+                            showCorrection = false
                         },
                         onCancel: {
                             showCorrection = false
-                            isPaused = false          // optional: Spiel auch nach Abbruch fortsetzen
+                            isPaused = false
                         }
                     )
 
@@ -163,20 +163,6 @@ struct DartVisionUI: View {
                 }
     }
     
-    private func applyCorrection(_ correctedScore: Int) {
-        guard remainingScores.indices.contains(currentPlayerIndex) else { return }
-
-        // alten Wert holen
-        let oldRemaining = remainingScores[currentPlayerIndex]
-
-        // 🔹 neuen Rest berechnen (einfaches Beispiel)
-        let newRemaining = max(oldRemaining - correctedScore, 0)
-
-        remainingScores[currentPlayerIndex] = newRemaining
-        remaining = newRemaining
-
-        print("🧮 Korrektur angewendet: \(players[currentPlayerIndex]) neuer Rest: \(newRemaining)")
-    }
 
     // MARK: - Components
 

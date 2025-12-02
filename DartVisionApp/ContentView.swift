@@ -4,6 +4,11 @@ import Foundation
 
 enum GameState { case idle, ready, active }
 
+struct TurnSnapshot {
+    let playerIndex: Int
+    let scoreThrown: Int
+    let previousRest: Int
+}
 struct ContentView: View {
     @StateObject private var cameraModel = CameraModel()
     @State private var liveScores: [Int] = []
@@ -12,7 +17,7 @@ struct ContentView: View {
     @State private var remaining: Int = 0
     @State private var isPaused: Bool = false
     let dartTracker = DartTracker()
-    
+    @State private var lastTurn: TurnSnapshot?
     // DartVisionUI-States
     @State private var players: [String] = []
     @State private var remainingScores: [Int] = []
@@ -38,7 +43,7 @@ struct ContentView: View {
                 pauseAction: togglePause,
                 uploadHandler: cameraModel.uploadImageToServer,
                 // ⬇️ correctionAction MUSS vor cameraModel kommen
-                correctionAction: { /* TODO: Funktion kommt später */ },
+                correctionAction: correctLastTurn,
                 cameraModel: cameraModel
             )
             if showWinOverlay, let winner = winnerName {
@@ -80,9 +85,10 @@ struct ContentView: View {
         let currentIndex = currentPlayerIndex
         let playerName = players[currentIndex]
         
+        
         // Aktuellen Rest des Spielers holen
         let currentRest = remainingScores[currentIndex]
-        
+        lastTurn = TurnSnapshot(playerIndex: currentIndex, scoreThrown: Score, previousRest: currentRest)
         // 1. Neuen Rest berechnen (provisorisch)
         let newRest = currentRest - Score
         
@@ -137,7 +143,7 @@ struct ContentView: View {
         
         // Aktuellen Rest des Spielers holen
         let currentRest = remainingScores[currentIndex]
-        
+        lastTurn = TurnSnapshot(playerIndex: currentIndex, scoreThrown: totalScore, previousRest: currentRest)
         // 1. Neuen Rest berechnen (provisorisch)
         let newRest = currentRest - totalScore
         
@@ -193,6 +199,39 @@ struct ContentView: View {
             currentPlayerIndex = (currentPlayerIndex + 1) % players.count
         }
     }
+    private func correctLastTurn(newTotal: Int) {
+            guard let last = lastTurn else { return }
+            
+            print("🔧 Korrektur für \(players[last.playerIndex]): Alt \(last.scoreThrown) -> Neu \(newTotal)")
+            
+            // Wir rechnen vom "previousRest" aus (dem Stand VOR dem falschen Wurf)
+            let oldRest = last.previousRest
+            let correctedNewRest = oldRest - newTotal
+            
+            // Jetzt wenden wir die Dart-Regeln neu an
+            if correctedNewRest < 0 {
+                // Bust (Überworfen) durch Korrektur
+                remainingScores[last.playerIndex] = oldRest // Score zurücksetzen
+                // Optional: Ton abspielen "Überworfen"
+            } else if correctedNewRest == 0 {
+                // Sieg durch Korrektur
+                remainingScores[last.playerIndex] = 0
+                remaining = 0
+                winnerName = players[last.playerIndex]
+                showWinOverlay = true
+                cameraModel.stopCapturing()
+            } else {
+                // Gültiger Score
+                remainingScores[last.playerIndex] = correctedNewRest
+                // Falls der Spieler zufällig gerade dran ist, update auch 'remaining'
+                if currentPlayerIndex == last.playerIndex {
+                    remaining = correctedNewRest
+                }
+            }
+            
+            // Snapshot updaten (falls man sich noch mal korrigiert)
+            lastTurn = TurnSnapshot(playerIndex: last.playerIndex, scoreThrown: newTotal, previousRest: oldRest)
+        }
     private func finishGame() {
         cameraModel.isGameActive = false
         cameraModel.stopCapturing()

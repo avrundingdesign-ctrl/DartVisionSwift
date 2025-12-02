@@ -1,4 +1,4 @@
-import SwiftUI
+/*import SwiftUI
 
 struct ScoreCorrectionView: View {
     @State private var selectedDart: Int? = nil
@@ -50,7 +50,7 @@ struct ScoreCorrectionView: View {
                     }
                 }
 
-                // Kompaktes Eingabefeld (1–20, Bull, D/T)
+                // Kompaktes Eingabefeld (1–20, D/T)
                 if let active = selectedDart {
                     numberPad(for: active)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -98,10 +98,6 @@ struct ScoreCorrectionView: View {
         let v = dartValues[i]
         let m = dartMultipliers[i]
         guard v > 0 else { return "-" }
-        
-        // Optionale Anzeige für Bullseye
-        if v == 50 && m == 1 { return "Bull" }
-        
         switch m {
         case 2: return "D\(v)"
         case 3: return "T\(v)"
@@ -137,61 +133,12 @@ struct ScoreCorrectionView: View {
             }
             .padding(.horizontal, 4)
 
-            // ✅ NEU: Bullseye Zeile (25 und 50)
-            HStack(spacing: 6) {
-                // Button für 25 (Single Bull)
-                Button {
-                    dartValues[index] = 25
-                    dartMultipliers[index] = 1
-                } label: {
-                    Text("25")
-                        .font(.system(size: 16, weight: .bold))
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(dartValues[index] == 25 ? Color.green.opacity(0.3) : Color.dvMode.opacity(0.05))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(dartValues[index] == 25 ? Color.green : Color.clear, lineWidth: 1.5)
-                        )
-                        .foregroundColor(.dvInk)
-                }
-                .buttonStyle(.plain)
-
-                // Button für 50 (Bullseye)
-                Button {
-                    dartValues[index] = 50
-                    dartMultipliers[index] = 1
-                } label: {
-                    Text("Bull")
-                        .font(.system(size: 16, weight: .bold))
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(dartValues[index] == 50 ? Color.red.opacity(0.3) : Color.dvMode.opacity(0.05))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(dartValues[index] == 50 ? Color.red : Color.clear, lineWidth: 1.5)
-                        )
-                        .foregroundColor(.dvInk)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 4)
-            .padding(.top, 4)
-
             // D / T Buttons unter der Zahlentafel
             HStack(spacing: 12) {
                 toggleButton(label: "D", active: dartMultipliers[index] == 2) {
-                    // Blockieren, falls Bull ausgewählt ist
-                    if dartValues[index] == 25 || dartValues[index] == 50 { return }
                     dartMultipliers[index] = dartMultipliers[index] == 2 ? 1 : 2
                 }
                 toggleButton(label: "T", active: dartMultipliers[index] == 3) {
-                    // Blockieren, falls Bull ausgewählt ist
-                    if dartValues[index] == 25 || dartValues[index] == 50 { return }
                     dartMultipliers[index] = dartMultipliers[index] == 3 ? 1 : 3
                 }
             }
@@ -215,3 +162,4 @@ struct ScoreCorrectionView: View {
         .buttonStyle(.plain)
     }
 }
+*/
