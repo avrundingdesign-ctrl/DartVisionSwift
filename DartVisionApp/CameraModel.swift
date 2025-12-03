@@ -185,7 +185,7 @@ final class CameraModel: NSObject,
 
     // MARK: - Upload zum Server
     func uploadImageToServer(_ image: UIImage) {
-        guard let url = URL(string: "https://api.chris-hesse.com/upload"),
+        guard let url = URL(string: "http://192.168.178.100:5000/upload"),
               let jpegData = image.jpegData(compressionQuality: 1.0) else {
             return
         }
@@ -290,41 +290,42 @@ final class CameraModel: NSObject,
             case .sameRound:
                 // Wenn Liste = 3 && Dann leicher Dart in der nächsten Runde,
                 print("Alte Runde erkannt (3 Darts stecken noch).")
-                scheduleSafeRestart(after: 3.0)
+                
 
             case .update(let currentDarts):
                 if currentDarts.count == 1 {
                     
-                    let Score = currentDarts[0].score
+                    let firstDart = currentDarts[0]
                     DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: .Throw, object: Score)
+                        NotificationCenter.default.post(name: .Throw, object: firstDart)
                     }
                 }
                 if currentDarts.count == 2 {
-                    let Score = currentDarts[1].score
+                    let firstDart = currentDarts[1]
                     DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: .Throw, object: Score)
+                        NotificationCenter.default.post(name: .Throw, object: firstDart)
                     }
                 }
         
                 if currentDarts.count == 3 {
                     // Reihenfolgen-robuster Vergleich + moderate Toleranz
-                    let Score = currentDarts[2].score
+                    var firstDart = currentDarts[2]
                     
                     
                     // Score berechnen & ansagen
                     let totalScore = currentDarts.reduce(0) { $0 + $1.score }
+                    firstDart.score = totalScore
                     print("🎯 Gesamt-Score:", totalScore)
                     prepareAudioForSpeech()
                     let utterance = AVSpeechUtterance(string: "\(totalScore)")
                     utterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
                     utterance.rate = 0.45
                     synthesizer.speak(utterance)
-
+                    
                     
                     // UI benachrichtigen (Rest-Logik ist in ContentView)
                     DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: .didFinishTurn, object: Score)
+                        NotificationCenter.default.post(name: .didFinishTurn, object: firstDart)
                     }
                 }
             }

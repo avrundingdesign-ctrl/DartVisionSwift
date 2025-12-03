@@ -66,20 +66,20 @@ struct ContentView: View {
             }
             // Beobachte Ereignis "Zug beendet"
             NotificationCenter.default.addObserver(forName: .didFinishTurn, object: nil, queue: .main) { notif in
-                if let total = notif.object as? Int {
-                    handleTurnFinished(with: total)
+                if let totalDart = notif.object as? DartData {
+                    handleTurnFinished(with: totalDart)
                 }
             }
             NotificationCenter.default.addObserver(forName: .Throw, object: nil, queue: .main) { notif in
-                if let score = notif.object as? Int {
-                    thrown(with: score)
+                if let currentDart = notif.object as? DartData {
+                    thrown(with: currentDart)
                 }
             }
 
         }
         
     }
-    private func thrown(with Score: Int) {
+    private func thrown(with currentDart: DartData) {
         guard !players.isEmpty else { return }
 
         let currentIndex = currentPlayerIndex
@@ -88,9 +88,11 @@ struct ContentView: View {
         
         // Aktuellen Rest des Spielers holen
         let currentRest = remainingScores[currentIndex]
-        lastTurn = TurnSnapshot(playerIndex: currentIndex, scoreThrown: Score, previousRest: currentRest)
+        lastTurn = TurnSnapshot(playerIndex: currentIndex, scoreThrown: currentDart.score, previousRest: currentRest)
         // 1. Neuen Rest berechnen (provisorisch)
-        let newRest = currentRest - Score
+        let newRest = currentRest - currentDart.score
+        
+        
         
         if newRest < 0 {
             cameraModel.isThrowBusted = true
@@ -104,8 +106,37 @@ struct ContentView: View {
             // Score NICHT aktualisieren (wir behalten currentRest)
             // Direkt zum nächsten Spieler
             currentPlayerIndex = (currentPlayerIndex + 1) % players.count
+        
+        
+                
+            }
+        else if newRest == 0 && doubleOut{
             
-        } else if newRest == 0 {
+            let fieldtype = currentDart.field_type
+            if fieldtype == "double"{
+                remainingScores[currentPlayerIndex] = 0
+                remaining = 0
+                cameraModel.isThrowBusted = false
+                
+                // 3. Aufnahme stoppen und Overlay zeigen
+                cameraModel.isGameActive = false
+                cameraModel.stopCapturing()
+                
+                self.winnerName = playerName
+                withAnimation(.spring()) {
+                self.showWinOverlay = true
+                }
+            }
+            else{
+                let checkfieldtype = AVSpeechUtterance(string: "Single")
+                checkfieldtype.voice = AVSpeechSynthesisVoice(language: "de-DE")
+                cameraModel.synthesizer.speak(checkfieldtype)
+                
+                currentPlayerIndex = (currentPlayerIndex + 1) % players.count
+            }
+            
+            
+        } else if newRest == 0 && !doubleOut{
             let playerName = players[currentPlayerIndex]
             
             // 1. Score auf 0 setzen
@@ -129,13 +160,11 @@ struct ContentView: View {
             remainingScores[currentIndex] = newRest
             remaining = newRest
             cameraModel.isThrowBusted = false
-            
-            
-                        
+
         }
     }
     // MARK: - Spielzug-Logik
-    private func handleTurnFinished(with totalScore: Int) {
+    private func handleTurnFinished(with totalDart: DartData) {
         guard !players.isEmpty else { return }
 
         let currentIndex = currentPlayerIndex
@@ -143,12 +172,10 @@ struct ContentView: View {
         
         // Aktuellen Rest des Spielers holen
         let currentRest = remainingScores[currentIndex]
-        lastTurn = TurnSnapshot(playerIndex: currentIndex, scoreThrown: totalScore, previousRest: currentRest)
+        lastTurn = TurnSnapshot(playerIndex: currentIndex, scoreThrown: totalDart.score, previousRest: currentRest)
         // 1. Neuen Rest berechnen (provisorisch)
-        let newRest = currentRest - totalScore
+        let newRest = currentRest - totalDart.score
         
-        print("💥 \(playerName) wirft \(totalScore). Alter Rest: \(currentRest) -> Neu: \(newRest)")
-
         // Laufende Sprachausgabe stoppen
         cameraModel.synthesizer.stopSpeaking(at: .immediate)
 
@@ -165,7 +192,35 @@ struct ContentView: View {
             // Direkt zum nächsten Spieler
             currentPlayerIndex = (currentPlayerIndex + 1) % players.count
             
-        } else if newRest == 0 {
+        }
+        else if newRest == 0 && doubleOut{
+            
+            let fieldtype = totalDart.field_type
+            if fieldtype == "double"{
+                remainingScores[currentPlayerIndex] = 0
+                remaining = 0
+                cameraModel.isThrowBusted = false
+                
+                // 3. Aufnahme stoppen und Overlay zeigen
+                cameraModel.isGameActive = false
+                cameraModel.stopCapturing()
+                
+                self.winnerName = playerName
+                withAnimation(.spring()) {
+                self.showWinOverlay = true
+                }
+            }
+            else{
+                let checkfieldtype = AVSpeechUtterance(string: "Single")
+                checkfieldtype.voice = AVSpeechSynthesisVoice(language: "de-DE")
+                cameraModel.synthesizer.speak(checkfieldtype)
+                
+                currentPlayerIndex = (currentPlayerIndex + 1) % players.count
+            }
+            
+            
+        }
+        else if newRest == 0 && !doubleOut {
             let playerName = players[currentPlayerIndex]
             
             // 1. Score auf 0 setzen
@@ -182,7 +237,16 @@ struct ContentView: View {
                 self.showWinOverlay = true
             }
             
-        } else {
+        }
+        
+        
+        
+        
+        
+        
+        
+        
+        else {
             // --- FALL 3: NORMAL WEITER (Rest > 0) ---
             print("✅ Gültiger Wurf. Rest: \(newRest)")
             cameraModel.isThrowBusted = false
