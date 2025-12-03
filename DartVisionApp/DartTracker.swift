@@ -42,6 +42,8 @@ class DartTracker {
             onScoresUpdated?([])
         }
         
+        let previousCount = history.count
+        
         // ---------------------------------------------------------
         // SCHRITT 2: Neue Darts hinzufügen (nur wenn oben nicht abgebrochen)
         // ---------------------------------------------------------
@@ -61,6 +63,10 @@ class DartTracker {
                 let currentScores = history.map { $0.score }
                 onScoresUpdated?(currentScores)
             }
+        }
+        
+        if previousCount == history.count && !history.isEmpty{
+            return .sameRound
         }
         
         // Wir geben das Signal "update" mit der neuen Liste zurück
