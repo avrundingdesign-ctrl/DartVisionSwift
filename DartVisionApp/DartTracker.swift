@@ -22,7 +22,7 @@ class DartTracker {
         // ---------------------------------------------------------
 
         
-        if history.count == maxDarts || isBusted {
+        if history.count == maxDarts {
             
             // Prüfen: Gibt es eine Verbindung zu alten Darts?
             let connectionFound = newDarts.contains { newDart in
@@ -44,6 +44,19 @@ class DartTracker {
             onScoresUpdated?([])
         }
         
+        // Spezialfall: Wenn isBusted gesetzt ist und wir alte Darts sehen
+        // (Spieler hat bereits gebustet, Darts stecken noch)
+        if isBusted && !history.isEmpty {
+            let connectionFound = newDarts.contains { newDart in
+                history.contains { oldDart in
+                    hypot(oldDart.x - newDart.x, oldDart.y - newDart.y) < tolerance
+                }
+            }
+            if connectionFound {
+                return .sameRound
+            }
+        }
+        
         // ---------------------------------------------------------
         // SCHRITT 2: Neue Darts hinzufügen (nur wenn oben nicht abgebrochen)
         // ---------------------------------------------------------
@@ -54,9 +67,6 @@ class DartTracker {
             // Stop, wenn Duplikat
             let isDuplicate = history.contains{ oldDart in
                 hypot(oldDart.x - newDart.x, oldDart.y - newDart.y) < tolerance
-            }
-            if isDuplicate && isBusted{
-                return .sameRound
             }
             if !isDuplicate {
                 history.append(newDart)
