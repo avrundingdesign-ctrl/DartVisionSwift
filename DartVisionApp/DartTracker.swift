@@ -20,7 +20,9 @@ class DartTracker {
         // ---------------------------------------------------------
         // SCHRITT 1: Check auf "Alte Runde"
         // ---------------------------------------------------------
-        if history.count == maxDarts {
+
+        
+        if history.count == maxDarts || isBusted {
             
             // Prüfen: Gibt es eine Verbindung zu alten Darts?
             let connectionFound = newDarts.contains { newDart in

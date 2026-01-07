@@ -293,6 +293,7 @@ final class CameraModel: NSObject,
                 
 
             case .update(let currentDarts):
+                
                 if currentDarts.count == 1 {
                     
                     let firstDart = currentDarts[0]
