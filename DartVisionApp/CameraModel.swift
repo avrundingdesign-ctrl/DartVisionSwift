@@ -295,27 +295,33 @@ final class CameraModel: NSObject,
             case .update(let currentDarts):
                 
                 if currentDarts.count == 1 {
-                    
                     let firstDart = currentDarts[0]
                     DispatchQueue.main.async {
                         NotificationCenter.default.post(name: .Throw, object: firstDart)
                     }
                 }
                 if currentDarts.count == 2 {
-                    let firstDart = currentDarts[1]
+                    let secondDart = currentDarts[1]
                     DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: .Throw, object: firstDart)
+                        NotificationCenter.default.post(name: .Throw, object: secondDart)
                     }
                 }
         
                 if currentDarts.count == 3 {
-                    // Reihenfolgen-robuster Vergleich + moderate Toleranz
-                    var firstDart = currentDarts[2]
-                    
+                    // Den letzten Dart nehmen für field_type Information
+                    let lastDart = currentDarts[2]
                     
                     // Score berechnen & ansagen
                     let totalScore = currentDarts.reduce(0) { $0 + $1.score }
-                    firstDart.score = totalScore
+                    
+                    // Neuen Dart mit totalScore erstellen, aber field_type vom letzten Dart beibehalten
+                    var totalDart = DartData(
+                        x: lastDart.x,
+                        y: lastDart.y,
+                        score: totalScore,
+                        field_type: lastDart.field_type
+                    )
+                    
                     print("🎯 Gesamt-Score:", totalScore)
                     prepareAudioForSpeech()
                     let utterance = AVSpeechUtterance(string: "\(totalScore)")
@@ -323,10 +329,9 @@ final class CameraModel: NSObject,
                     utterance.rate = 0.45
                     synthesizer.speak(utterance)
                     
-                    
                     // UI benachrichtigen (Rest-Logik ist in ContentView)
                     DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: .didFinishTurn, object: firstDart)
+                        NotificationCenter.default.post(name: .didFinishTurn, object: totalDart)
                     }
                 }
             }

@@ -85,35 +85,30 @@ struct ContentView: View {
         let currentIndex = currentPlayerIndex
         let playerName = players[currentIndex]
         
-        
         // Aktuellen Rest des Spielers holen
         let currentRest = remainingScores[currentIndex]
         lastTurn = TurnSnapshot(playerIndex: currentIndex, scoreThrown: currentDart.score, previousRest: currentRest)
         // 1. Neuen Rest berechnen (provisorisch)
         let newRest = currentRest - currentDart.score
         
-        
+        // Laufende Sprachausgabe stoppen
+        cameraModel.synthesizer.stopSpeaking(at: .immediate)
         
         if newRest < 0 {
-            cameraModel.isThrowBusted = true
             // --- FALL 1: ÜBERWORFEN (Bust) ---
             print("❌ Überworfen! Score bleibt bei \(currentRest).")
+            cameraModel.isThrowBusted = true
             
             let bustUtterance = AVSpeechUtterance(string: "Überworfen")
             bustUtterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
             cameraModel.synthesizer.speak(bustUtterance)
             
             // Score NICHT aktualisieren (wir behalten currentRest)
-            // Direkt zum nächsten Spieler
-            currentPlayerIndex = (currentPlayerIndex + 1) % players.count
-        
-        
-                
-            }
-        else if newRest == 0 && doubleOut{
-            
+            // Direkt zum nächsten Spieler wird NICHT hier gemacht (erst nach 3 Darts)
+        }
+        else if newRest == 0 && doubleOut {
             let fieldtype = currentDart.field_type
-            if fieldtype == "double"{
+            if fieldtype == "double" {
                 remainingScores[currentPlayerIndex] = 0
                 remaining = 0
                 cameraModel.isThrowBusted = false
@@ -124,21 +119,19 @@ struct ContentView: View {
                 
                 self.winnerName = playerName
                 withAnimation(.spring()) {
-                self.showWinOverlay = true
+                    self.showWinOverlay = true
                 }
             }
-            else{
-                let checkfieldtype = AVSpeechUtterance(string: "Single")
+            else {
+                // Nicht mit Double ausgecheckt -> Bust
+                print("❌ Double-Out erforderlich! Score bleibt bei \(currentRest).")
+                cameraModel.isThrowBusted = true
+                
+                let checkfieldtype = AVSpeechUtterance(string: "Double erforderlich")
                 checkfieldtype.voice = AVSpeechSynthesisVoice(language: "de-DE")
                 cameraModel.synthesizer.speak(checkfieldtype)
-                
-                currentPlayerIndex = (currentPlayerIndex + 1) % players.count
             }
-            
-            
-        } else if newRest == 0 && !doubleOut{
-            let playerName = players[currentPlayerIndex]
-            
+        } else if newRest == 0 && !doubleOut {
             // 1. Score auf 0 setzen
             remainingScores[currentPlayerIndex] = 0
             remaining = 0
@@ -152,15 +145,12 @@ struct ContentView: View {
             withAnimation(.spring()) {
                 self.showWinOverlay = true
             }
-            
         } else {
             // --- FALL 3: NORMAL WEITER (Rest > 0) ---
-            
             // Score aktualisieren
             remainingScores[currentIndex] = newRest
             remaining = newRest
             cameraModel.isThrowBusted = false
-
         }
     }
     // MARK: - Spielzug-Logik
@@ -193,10 +183,9 @@ struct ContentView: View {
             currentPlayerIndex = (currentPlayerIndex + 1) % players.count
             
         }
-        else if newRest == 0 && doubleOut{
-            
+        else if newRest == 0 && doubleOut {
             let fieldtype = totalDart.field_type
-            if fieldtype == "double"{
+            if fieldtype == "double" {
                 remainingScores[currentPlayerIndex] = 0
                 remaining = 0
                 cameraModel.isThrowBusted = false
@@ -207,18 +196,21 @@ struct ContentView: View {
                 
                 self.winnerName = playerName
                 withAnimation(.spring()) {
-                self.showWinOverlay = true
+                    self.showWinOverlay = true
                 }
             }
-            else{
-                let checkfieldtype = AVSpeechUtterance(string: "Single")
+            else {
+                // Nicht mit Double ausgecheckt -> Bust
+                print("❌ Double-Out erforderlich! Score bleibt bei \(currentRest).")
+                cameraModel.isThrowBusted = true
+                
+                let checkfieldtype = AVSpeechUtterance(string: "Double erforderlich")
                 checkfieldtype.voice = AVSpeechSynthesisVoice(language: "de-DE")
                 cameraModel.synthesizer.speak(checkfieldtype)
                 
+                // Score NICHT ändern, zum nächsten Spieler
                 currentPlayerIndex = (currentPlayerIndex + 1) % players.count
             }
-            
-            
         }
         else if newRest == 0 && !doubleOut {
             let playerName = players[currentPlayerIndex]
@@ -264,38 +256,41 @@ struct ContentView: View {
         }
     }
     private func correctLastTurn(newTotal: Int) {
-            guard let last = lastTurn else { return }
-            
-            print("🔧 Korrektur für \(players[last.playerIndex]): Alt \(last.scoreThrown) -> Neu \(newTotal)")
-            
-            // Wir rechnen vom "previousRest" aus (dem Stand VOR dem falschen Wurf)
-            let oldRest = last.previousRest
-            let correctedNewRest = oldRest - newTotal
-            
-            // Jetzt wenden wir die Dart-Regeln neu an
-            if correctedNewRest < 0 {
-                // Bust (Überworfen) durch Korrektur
-                remainingScores[last.playerIndex] = oldRest // Score zurücksetzen
-                // Optional: Ton abspielen "Überworfen"
-            } else if correctedNewRest == 0 {
-                // Sieg durch Korrektur
-                remainingScores[last.playerIndex] = 0
-                remaining = 0
-                winnerName = players[last.playerIndex]
-                showWinOverlay = true
-                cameraModel.stopCapturing()
-            } else {
-                // Gültiger Score
-                remainingScores[last.playerIndex] = correctedNewRest
-                // Falls der Spieler zufällig gerade dran ist, update auch 'remaining'
-                if currentPlayerIndex == last.playerIndex {
-                    remaining = correctedNewRest
-                }
+        guard let last = lastTurn else { return }
+        
+        print("🔧 Korrektur für \(players[last.playerIndex]): Alt \(last.scoreThrown) -> Neu \(newTotal)")
+        
+        // Wir rechnen vom "previousRest" aus (dem Stand VOR dem falschen Wurf)
+        let oldRest = last.previousRest
+        let correctedNewRest = oldRest - newTotal
+        
+        // Jetzt wenden wir die Dart-Regeln neu an
+        if correctedNewRest < 0 {
+            // Bust (Überworfen) durch Korrektur
+            remainingScores[last.playerIndex] = oldRest // Score zurücksetzen
+            cameraModel.isThrowBusted = true
+            // Optional: Ton abspielen "Überworfen"
+        } else if correctedNewRest == 0 {
+            // Sieg durch Korrektur
+            remainingScores[last.playerIndex] = 0
+            remaining = 0
+            cameraModel.isThrowBusted = false
+            winnerName = players[last.playerIndex]
+            showWinOverlay = true
+            cameraModel.stopCapturing()
+        } else {
+            // Gültiger Score
+            remainingScores[last.playerIndex] = correctedNewRest
+            cameraModel.isThrowBusted = false
+            // Falls der Spieler zufällig gerade dran ist, update auch 'remaining'
+            if currentPlayerIndex == last.playerIndex {
+                remaining = correctedNewRest
             }
-            
-            // Snapshot updaten (falls man sich noch mal korrigiert)
-            lastTurn = TurnSnapshot(playerIndex: last.playerIndex, scoreThrown: newTotal, previousRest: oldRest)
         }
+        
+        // Snapshot updaten (falls man sich noch mal korrigiert)
+        lastTurn = TurnSnapshot(playerIndex: last.playerIndex, scoreThrown: newTotal, previousRest: oldRest)
+    }
     private func finishGame() {
         cameraModel.isGameActive = false
         cameraModel.stopCapturing()

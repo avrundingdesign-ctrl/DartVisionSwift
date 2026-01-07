@@ -287,6 +287,7 @@ struct AnalogView: View {
 
     private func nextPlayer() {
         dartsThrown = 0
+        multiplier = 1  // Reset multiplier when changing player
         currentPlayerIndex = (currentPlayerIndex + 1) % players.count
         speak("Nächster Spieler: \(players[currentPlayerIndex].name)")
     }

@@ -32,6 +32,9 @@ final class MotionDetector: ObservableObject {
 
             if totalMotion < self.motionThreshold {
                 // Gerät ist ruhig
+                self.isStill = true
+                self.isMoving = false
+                
                 if self.stillnessStart == nil {
                     self.stillnessStart = Date()
                 } else if Date().timeIntervalSince(self.stillnessStart!) > self.requiredStillnessTime {
@@ -41,10 +44,10 @@ final class MotionDetector: ObservableObject {
                         NotificationCenter.default.post(name: .deviceWasStillFor2Sec, object: nil)
                     }
                 }
-                self.isStill = true
             } else {
                 // Bewegung erkannt → zurücksetzen
                 self.isStill = false
+                self.isMoving = true
                 self.hasBeenStillFor2Sec = false
                 self.stillnessStart = nil
             }
@@ -53,5 +56,10 @@ final class MotionDetector: ObservableObject {
 
     func stopMonitoring() {
         motionManager.stopDeviceMotionUpdates()
+        // Reset state when stopping
+        isStill = false
+        isMoving = false
+        hasBeenStillFor2Sec = false
+        stillnessStart = nil
     }
 }
