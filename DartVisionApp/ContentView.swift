@@ -25,6 +25,8 @@ struct ContentView: View {
     @State private var doubleOut: Bool = false
     @State private var showWinOverlay = false
     @State private var winnerName: String?
+    @State private var turnStartScore: Int = 0
+    @State private var currentScore : Int = 0
     
     var body: some View {
         ZStack{
@@ -88,16 +90,17 @@ struct ContentView: View {
         
         // Aktuellen Rest des Spielers holen
         let currentRest = remainingScores[currentIndex]
-        lastTurn = TurnSnapshot(playerIndex: currentIndex, scoreThrown: currentDart.score, previousRest: currentRest)
-        // 1. Neuen Rest berechnen (provisorisch)
-        let newRest = currentRest - currentDart.score
+        
+        currentScore += currentDart.score
+        
+        let newRest = currentRest - currentScore
         
         
         
         if newRest < 0 {
-            cameraModel.isThrowBusted = true
             // --- FALL 1: ÜBERWORFEN (Bust) ---
             print("❌ Überworfen! Score bleibt bei \(currentRest).")
+            cameraModel.isThrowBusted = true
             
             let bustUtterance = AVSpeechUtterance(string: "Überworfen")
             bustUtterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
@@ -105,11 +108,10 @@ struct ContentView: View {
             
             // Score NICHT aktualisieren (wir behalten currentRest)
             // Direkt zum nächsten Spieler
-            currentPlayerIndex = (currentPlayerIndex + 1) % players.count
-        
-        
-                
-            }
+            nextPlayer()
+            // DartTracker für neuen Spieler zurücksetzen
+            
+        }
         else if newRest == 0 && doubleOut{
             
             let fieldtype = currentDart.field_type
@@ -126,13 +128,16 @@ struct ContentView: View {
                 withAnimation(.spring()) {
                 self.showWinOverlay = true
                 }
+                finishGame()
             }
             else{
                 let checkfieldtype = AVSpeechUtterance(string: "Single")
                 checkfieldtype.voice = AVSpeechSynthesisVoice(language: "de-DE")
                 cameraModel.synthesizer.speak(checkfieldtype)
+                cameraModel.isThrowBusted = true
                 
-                currentPlayerIndex = (currentPlayerIndex + 1) % players.count
+                nextPlayer()
+                
             }
             
             
@@ -152,15 +157,12 @@ struct ContentView: View {
             withAnimation(.spring()) {
                 self.showWinOverlay = true
             }
+            finishGame()
             
         } else {
-            // --- FALL 3: NORMAL WEITER (Rest > 0) ---
-            
-            // Score aktualisieren
-            remainingScores[currentIndex] = newRest
-            remaining = newRest
-            cameraModel.isThrowBusted = false
 
+            cameraModel.isThrowBusted = false
+            
         }
     }
     // MARK: - Spielzug-Logik
@@ -172,9 +174,12 @@ struct ContentView: View {
         
         // Aktuellen Rest des Spielers holen
         let currentRest = remainingScores[currentIndex]
-        lastTurn = TurnSnapshot(playerIndex: currentIndex, scoreThrown: totalDart.score, previousRest: currentRest)
+        currentScore += totalDart.score
+        lastTurn = TurnSnapshot(playerIndex: currentIndex, scoreThrown: currentScore, previousRest: currentRest)
         // 1. Neuen Rest berechnen (provisorisch)
-        let newRest = currentRest - totalDart.score
+        
+        
+        let newRest = currentRest - currentScore
         
         // Laufende Sprachausgabe stoppen
         cameraModel.synthesizer.stopSpeaking(at: .immediate)
@@ -187,10 +192,13 @@ struct ContentView: View {
             let bustUtterance = AVSpeechUtterance(string: "Überworfen")
             bustUtterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
             cameraModel.synthesizer.speak(bustUtterance)
-            
+            remainingScores[currentPlayerIndex] = turnStartScore
             // Score NICHT aktualisieren (wir behalten currentRest)
             // Direkt zum nächsten Spieler
-            currentPlayerIndex = (currentPlayerIndex + 1) % players.count
+            nextPlayer()
+            cameraModel.isThrowBusted = false
+            // DartTracker für neuen Spieler zurücksetzen
+            
             
         }
         else if newRest == 0 && doubleOut{
@@ -202,20 +210,20 @@ struct ContentView: View {
                 cameraModel.isThrowBusted = false
                 
                 // 3. Aufnahme stoppen und Overlay zeigen
-                cameraModel.isGameActive = false
-                cameraModel.stopCapturing()
                 
                 self.winnerName = playerName
                 withAnimation(.spring()) {
                 self.showWinOverlay = true
                 }
+                finishGame()
+                
             }
             else{
                 let checkfieldtype = AVSpeechUtterance(string: "Single")
                 checkfieldtype.voice = AVSpeechSynthesisVoice(language: "de-DE")
                 cameraModel.synthesizer.speak(checkfieldtype)
                 
-                currentPlayerIndex = (currentPlayerIndex + 1) % players.count
+                nextPlayer()
             }
             
             
@@ -228,19 +236,15 @@ struct ContentView: View {
             remaining = 0
             
             cameraModel.isThrowBusted = false
-            // 3. Aufnahme stoppen und Overlay zeigen
-            cameraModel.isGameActive = false
-            cameraModel.stopCapturing()
+            
             
             self.winnerName = playerName
             withAnimation(.spring()) {
                 self.showWinOverlay = true
             }
+            finishGame()
             
         }
-        
-        
-        
         
         
         
@@ -260,7 +264,10 @@ struct ContentView: View {
             cameraModel.synthesizer.speak(restUtterance)
             
             // Nächster Spieler
-            currentPlayerIndex = (currentPlayerIndex + 1) % players.count
+            nextPlayer()
+            
+            // DartTracker für neuen Spieler zurücksetzen
+            
         }
     }
     private func correctLastTurn(newTotal: Int) {
@@ -303,14 +310,15 @@ struct ContentView: View {
         cameraModel.dartTracker.reset() // Tracker Reset
         self.liveScores = []
         gameState = .ready
-        
+        currentScore = 0
         // Popup schließen
-        self.showWinOverlay = false
-        self.winnerName = nil
+        //self.showWinOverlay = false
+        //self.winnerName = nil
     }
 
     // MARK: - Game Controls
     private func startGame() {
+        currentScore = 0
         cameraModel.isGameActive = true
         guard let start = selectedGame else { return }
         isPaused = false
@@ -338,6 +346,7 @@ struct ContentView: View {
         cameraModel.isGameActive = false
         cameraModel.stopCapturing()
         gameState = .ready
+        currentScore = 0
     }
 
     private func togglePause() {
@@ -351,6 +360,14 @@ struct ContentView: View {
             cameraModel.stopCapturing()
         }
     }
+    private func nextPlayer() {
+        currentPlayerIndex = (currentPlayerIndex + 1) % players.count
+        // WICHTIG: Den Score für den neuen Spieler "sichern"
+        currentScore = 0
+        turnStartScore = remainingScores[currentPlayerIndex]
+        liveScores = []
+    }
+
 }
 
 // Optional: Server-Reset-Helfer (unverändert)
