@@ -117,10 +117,14 @@ final class CameraModel: NSObject,
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 guard self.isGameActive else { return }
-                guard self.motionDetector.hasBeenStillFor2Sec else { return }
+                guard self.motionDetector.hasBeenStillFor2Sec else { 
+                    print("⏸️ Gerät nicht still genug")
+                    return 
+                }
                 guard !self.isCapturingNow else { return }
                 guard !self.isSpeaking else { return }           // nie während TTS fotografieren
 
+                print("📸 Mache Foto...")
                 self.isCapturingNow = true
                 let settings = AVCapturePhotoSettings()
                 self.output.capturePhoto(with: settings, delegate: self)
@@ -178,17 +182,24 @@ final class CameraModel: NSObject,
             }
         }
 
+        print("📸 Foto aufgenommen, rufe photoHandler auf...")
         // Optional: Callback weiterreichen
         photoHandler?(image)
+        print("✅ photoHandler wurde aufgerufen")
     }
 
 
     // MARK: - Upload zum Server
     func uploadImageToServer(_ image: UIImage) {
-        guard let url = URL(string: "https://api.chris-hesse.com/upload"),
+        print("📤 uploadImageToServer aufgerufen")
+        
+        guard let url = URL(string: "http://192.168.178.106:5000/upload"),
               let jpegData = image.jpegData(compressionQuality: 1.0) else {
+            print("❌ URL oder JPEG-Konvertierung fehlgeschlagen")
             return
         }
+        
+        print("📤 Sende \(jpegData.count / 1024) KB an \(url.absoluteString)")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -227,7 +238,12 @@ final class CameraModel: NSObject,
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
         request.httpBody = body
 
-        URLSession.shared.dataTask(with: request) { data, _, error in
+        print("📤 Starte Upload-Request...")
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let httpResponse = response as? HTTPURLResponse {
+                print("📥 Server antwortet mit Status: \(httpResponse.statusCode)")
+            }
+            
             if let error {
                 print("❌ Upload-Fehler:", error.localizedDescription)
                 return
@@ -280,63 +296,54 @@ final class CameraModel: NSObject,
         }
 
         // Darts verarbeiten
-        if !decoded.darts.isEmpty {
+        
   
             // Funktionsaufruf
+            let countBefore = dartTracker.getHistoryCount()
             let result = dartTracker.merge(with: decoded.darts, isBusted: self.isThrowBusted)
 
             switch result {
                 
-            case .sameRound:
-                // Wenn Liste = 3 && Dann leicher Dart in der nächsten Runde,
-                print("Alte Runde erkannt (3 Darts stecken noch).")
-                scheduleSafeRestart(after: 3.0)
+                case .sameRound:
+                // Wenn Liste = 3 && Dann gleicher Dart in der nächsten Runde,
+                    print("Alte Runde erkannt (3 Darts stecken noch).")
+                
 
-            case .update(let currentDarts):
-                if currentDarts.count == 1 {
-                    
-                    let Score = currentDarts[0].score
-                    DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: .Throw, object: Score)
-                    }
-                }
-                if currentDarts.count == 2 {
-                    let Score = currentDarts[1].score
-                    DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: .Throw, object: Score)
-                    }
-                }
-        
-                if currentDarts.count == 3 {
-                    // Reihenfolgen-robuster Vergleich + moderate Toleranz
-                    let Score = currentDarts[2].score
-                    
-                    
-                    // Score berechnen & ansagen
-                    let totalScore = currentDarts.reduce(0) { $0 + $1.score }
-                    print("🎯 Gesamt-Score:", totalScore)
-                    prepareAudioForSpeech()
-                    let utterance = AVSpeechUtterance(string: "\(totalScore)")
-                    utterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
-                    utterance.rate = 0.45
-                    synthesizer.speak(utterance)
+                case .update(let currentDarts):
+                    if currentDarts.count > countBefore {
+                        for i in countBefore..<currentDarts.count {
+                            let newDart = currentDarts[i]
+                            let dartNumber = i + 1 // Der wievielte Dart ist das in der Runde?
 
-                    
-                    // UI benachrichtigen (Rest-Logik ist in ContentView)
-                    DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: .didFinishTurn, object: Score)
+                            if dartNumber < 3 {
+                                // Dart 1 oder 2
+                                DispatchQueue.main.async {
+                                    NotificationCenter.default.post(name: .Throw, object: newDart)
+                                }
+                            } else {
+                                // Dart 3 -> Turn beendet
+                                
+                                let totalScore = currentDarts.reduce(0) { $0 + $1.score }
+                                
+                                
+                                // Sprachausgabe
+                                prepareAudioForSpeech()
+                                let utterance = AVSpeechUtterance(string: "\(totalScore)")
+                                utterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
+                                synthesizer.speak(utterance)
+
+                                DispatchQueue.main.async {
+                                    NotificationCenter.default.post(name: .didFinishTurn, object: newDart)
+                                }
+                            }
+                        }
                     }
-                }
+                
             }
 
             // Nach Verarbeitung neu starten – aber nie während TTS
-            scheduleSafeRestart(after: 3.0)
+            scheduleSafeRestart(after: 1.0)
 
-        } else {
-            print("⏸️ Keine Darts erkannt.")
-            dartTracker.reset()
-            scheduleSafeRestart(after: 3.0)
-        }
     }
 
     // MARK: - TTS-sicherer Restart-Helfer

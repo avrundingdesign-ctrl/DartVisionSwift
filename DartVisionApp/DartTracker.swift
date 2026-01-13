@@ -9,7 +9,8 @@ enum ScanResult {
 
 class DartTracker {
     
-    private var history: [DartData] = []
+    private var history: [DartData] = [] { didSet { print("📊 Aktuelle History: \(history.map { $0.score })") } }
+    private var ignoredDarts: [DartData] = []  // Alte Pfeile vom vorherigen Spieler
     private let tolerance: CGFloat = 20.0
     private let maxDarts = 3
     var onScoresUpdated: (([Int]) -> Void)?
@@ -17,10 +18,17 @@ class DartTracker {
     // Rückgabetyp ist jetzt unser Enum "ScanResult"
     func merge(with newDarts: [DartData], isBusted: Bool) -> ScanResult {
         
+        let historyOld = history
+        
         // ---------------------------------------------------------
         // SCHRITT 1: Check auf "Alte Runde"
-        // ---------------------------------------------------------
-        if history.count == maxDarts {
+        // --------------------------------------------------------
+
+        if newDarts.isEmpty && history.count == maxDarts {
+            reset()
+        }
+        
+        if history.count == maxDarts || isBusted { //geht das?
             
             // Prüfen: Gibt es eine Verbindung zu alten Darts?
             let connectionFound = newDarts.contains { newDart in
@@ -38,31 +46,51 @@ class DartTracker {
             // Wenn wir hier ankommen, war die Liste voll, aber KEIN alter Dart da.
             // -> Das heißt: Pfeile wurden gezogen -> Reset.
             print("♻️ Reset: Neue Runde erkannt.")
-            history.removeAll()
+            history.removeAll()// Ignore-Liste auch leeren!
             onScoresUpdated?([])
+            
         }
         
+<<<<<<< HEAD
         let previousCount = history.count
+=======
+>>>>>>> NeuesteVersion
         
         // ---------------------------------------------------------
         // SCHRITT 2: Neue Darts hinzufügen (nur wenn oben nicht abgebrochen)
         // ---------------------------------------------------------
         for newDart in newDarts {
             // Stop, wenn voll
+            
+            
             if history.count >= maxDarts { break }
             
-            // Stop, wenn Duplikat
+            // Prüfe ob dieser Dart ignoriert werden soll (alter Pfeil vom vorherigen Spieler)
+            
+            
+            
+            // DER ISIGNORED TEIL IST UNNÖTIG, Das wird Oben bereits überprüft mit isConnection found, dann wird zurück gegeben das es der gleiche Spieler noch ist
+            
+            // Prüfe ob Duplikat in aktueller History
             let isDuplicate = history.contains{ oldDart in
                 hypot(oldDart.x - newDart.x, oldDart.y - newDart.y) < tolerance
             }
-            if isDuplicate && isBusted{
-                return .sameRound
+            
+            if isDuplicate {
+                print("⚠️ Duplikat erkannt, überspringe Dart")
+                continue  // Überspringe diesen Dart, aber verarbeite weitere
             }
-            if !isDuplicate {
-                history.append(newDart)
-                let currentScores = history.map { $0.score }
-                onScoresUpdated?(currentScores)
-            }
+            
+            // Neuen Dart hinzufügen
+            history.append(newDart)
+            
+            
+            let currentScores = history.map { $0.score }
+            onScoresUpdated?(currentScores)
+        }
+        
+        if historyOld.count == history.count {
+            return.sameRound
         }
         
         if previousCount == history.count && !history.isEmpty{
@@ -74,7 +102,21 @@ class DartTracker {
     }
     
     func reset() {
+        // Alte Pfeile merken, bevor wir resetten (für nächsten Spieler)
+        ignoredDarts = history
+        print("💾 Merke \(history.count) alte Pfeile zum Ignorieren")
+        
+        // History für neuen Spieler leeren
         history.removeAll()
         onScoresUpdated?([])
+    }
+    
+    func clearIgnored() {
+        // Ignore-Liste leeren (wenn Pfeile gezogen wurden)
+        ignoredDarts.removeAll()
+        print("🗑️ Ignore-Liste geleert")
+    }
+    func getHistoryCount() -> Int {
+        return history.count
     }
 }

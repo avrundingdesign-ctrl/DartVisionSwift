@@ -18,8 +18,9 @@ struct DartData: Codable, Identifiable {
     var x: CGFloat
     var y: CGFloat
     var score: Int
+    var field_type: String
     
     private enum CodingKeys: String, CodingKey {
-        case x, y, score
+        case x, y, score, field_type
     }
 }
