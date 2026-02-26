@@ -28,6 +28,7 @@ struct DartVisionUI: View {
     @State private var showCorrection = false
     @State private var correctedThrows: [Int] = [] // für spätere Verwendung
     @State private var showModeSelection = false
+    @State private var showTestRunner = false
     
     @State private var showCalibratedPopup = false
 
@@ -64,9 +65,16 @@ struct DartVisionUI: View {
 
                         // Spieleranzeige im aktiven Spiel
                         if gameState == .active {
-                            playerList()
-                                .padding(.horizontal, 10)
-                                .transition(.opacity)
+                            // ⬇️ NEU: Prüfe welcher Modus aktiv ist
+                            if cameraModel.currentGame.mode == .followMe {
+                                followMeDisplay()  // ← Neue Funktion (kommt gleich!)
+                                    .padding(.horizontal, 10)
+                                    .transition(.opacity)
+                            } else {
+                                playerList()  // ← Alte Funktion (bleibt wie sie ist)
+                                    .padding(.horizontal, 10)
+                                    .transition(.opacity)
+                            }
                             
                             CurrentThrowRow(scores: currentScores)
                                 .padding(.horizontal,10)
@@ -165,13 +173,76 @@ struct DartVisionUI: View {
     
 
     // MARK: - Components
-
+    @ViewBuilder
+    private func followMeDisplay() -> some View {
+        VStack(spacing: 20) {
+            // ⬇️ Aktuelle Zielzahl (groß und zentral)
+            if let target = cameraModel.currentGame.followMeTarget {
+                VStack(spacing: 8) {
+                    Text("Ziel")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.gray)
+                    
+                    Text("\(target)")
+                        .font(.system(size: 72, weight: .bold, design: .rounded))
+                        .foregroundColor(.dvPrimary)
+                }
+                .padding(.vertical, 20)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white)
+                        .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
+                )
+            }
+            
+            // ⬇️ Streak und Highscore nebeneinander
+            HStack(spacing: 16) {
+                // Aktueller Streak
+                VStack(spacing: 4) {
+                    Text("Streak")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.gray)
+                    Text("\(cameraModel.currentGame.followMeStreak)")
+                        .font(.system(size: 40, weight: .bold, design: .rounded))
+                        .foregroundColor(.dvPrimary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white)
+                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2)
+                )
+                
+                // Highscore
+                VStack(spacing: 4) {
+                    Text("Highscore")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.gray)
+                    Text("\(cameraModel.currentGame.followMeHighscore)")
+                        .font(.system(size: 40, weight: .bold, design: .rounded))
+                        .foregroundColor(.orange)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white)
+                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2)
+                )
+            }
+        }
+        .padding(.horizontal, 10)
+    }
+    
     @ViewBuilder
     private func controlStrip() -> some View {
         switch gameState {
         case .idle, .ready:
             glassButton(title: "Start Game",
-                        enabled: selectedGame != nil && !players.isEmpty) {
+                        enabled: (cameraModel.currentGame.mode == .followMe) ||
+                                 (selectedGame != nil && !players.isEmpty)) {
                 startAction()
             }
 
@@ -275,6 +346,7 @@ struct DartVisionUI: View {
             HStack(spacing: 40) {
                 bottomTab(title: "Vision")
                 bottomTab(title: "Analog")
+                bottomTab(title: "Test")
             }
             .padding(.horizontal, 30)
             .padding(.vertical, 10)
@@ -314,7 +386,27 @@ struct DartVisionUI: View {
 
     // MARK: - Bottom-Bar
     private func bottomTab(title: String) -> some View {
-        if title == "Analog" {
+        if title == "Test" {
+            return AnyView(
+                Button {
+                    showTestRunner = true
+                } label: {
+                    Text("🧪 Test")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.dvInk)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.clear)
+                        )
+                }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $showTestRunner) {
+                    TestRunnerView()
+                }
+            )
+        } else if title == "Analog" {
             return AnyView(
                 NavigationLink(destination: AnalogView()) {
                     Text(title)

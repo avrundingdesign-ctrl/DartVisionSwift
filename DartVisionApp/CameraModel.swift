@@ -193,7 +193,7 @@ final class CameraModel: NSObject,
     func uploadImageToServer(_ image: UIImage) {
         print("📤 uploadImageToServer aufgerufen")
         
-        guard let url = URL(string: "http://192.168.178.106:5000/upload"),
+        guard let url = URL(string: "http://192.168.178.111:5000/upload"),
               let jpegData = image.jpegData(compressionQuality: 1.0) else {
             print("❌ URL oder JPEG-Konvertierung fehlgeschlagen")
             return

@@ -82,6 +82,11 @@ struct ContentView: View {
         
     }
     private func thrown(with currentDart: DartData) {
+        
+        if cameraModel.currentGame.mode == .followMe {
+                handleFollowMeThrow(dart: currentDart)
+                return
+            }
         guard !players.isEmpty else { return }
 
         let currentIndex = currentPlayerIndex
@@ -167,6 +172,9 @@ struct ContentView: View {
     }
     // MARK: - Spielzug-Logik
     private func handleTurnFinished(with totalDart: DartData) {
+        if cameraModel.currentGame.mode == .followMe {
+                return  
+            }
         guard !players.isEmpty else { return }
 
         let currentIndex = currentPlayerIndex
@@ -317,31 +325,99 @@ struct ContentView: View {
     }
 
     // MARK: - Game Controls
+    
+    private func handleFollowMeThrow(dart: DartData) {
+        guard let target = cameraModel.currentGame.followMeTarget else { return }
+
+        let dartNumber = dart.score  // Server schickt Board-Nummer
+        
+        if dartNumber == target {
+            // Treffer!
+            cameraModel.currentGame.followMeStreak += 1
+            let newTarget = Int.random(in: 1...20)
+            cameraModel.currentGame.followMeTarget = newTarget
+            
+            let utterance = AVSpeechUtterance(string: "\(newTarget)")
+            utterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
+            cameraModel.synthesizer.speak(utterance)
+        } else {
+            // Miss - Game Over
+            let finalStreak = cameraModel.currentGame.followMeStreak
+            if finalStreak > cameraModel.currentGame.followMeHighscore {
+                cameraModel.currentGame.followMeHighscore = finalStreak
+            }
+            
+            winnerName = "Streak: \(finalStreak)"
+            showWinOverlay = true
+            finishGame()
+        }
+    }
+    
     private func startGame() {
         currentScore = 0
         cameraModel.isGameActive = true
-        guard let start = selectedGame else { return }
+
         isPaused = false
         gameState = .active
-
+        
+        let selectedMode = cameraModel.currentGame.mode
         // 🧹 Board- und Dart-Daten leeren + Spielerstart
         cameraModel.currentGame = GameData()
+        cameraModel.currentGame.mode = selectedMode
         currentPlayerIndex = 0
-
-        if players.isEmpty {
-            players = ["Player 1"]
+        
+        if cameraModel.currentGame.mode == .followMe {
+            players = ["You"]
+            remainingScores = [0]
+            
+            let firstTarget = Int.random(in: 1...20)
+            cameraModel.currentGame.followMeTarget = firstTarget
+            let utterance = AVSpeechUtterance(string: "\(firstTarget)")
+            utterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
+            cameraModel.synthesizer.speak(utterance)
         }
-
-        // 🔹 Pro-Spieler Restscore initialisieren
-        remainingScores = Array(repeating: start, count: players.count)
-        remaining = start
-
-        // Kamera starten
+        
+        else{
+            if players.isEmpty { players = ["Player 1"] }
+            guard let start = selectedGame else { return }
+            remainingScores = Array(repeating: start, count: players.count)
+            remaining = start
+        }
         cameraModel.startCapturing { cameraModel.uploadImageToServer($0) }
 
-        print("🎯 Spiel gestartet mit \(players.count) Spieler(n)")
     }
-
+    /*private func startGame() {
+        currentScore = 0
+        cameraModel.isGameActive = true
+        isPaused = false
+        gameState = .active
+        
+        cameraModel.currentGame = GameData()
+        
+        // ⬇️ NEU: Follow Me anders starten
+        if cameraModel.currentGame.mode == .followMe {
+            players = ["You"]  // Nur ein Spieler
+            remainingScores = [0]
+            
+            // Erste Zahl würfeln und ansagen
+            let firstTarget = Int.random(in: 1...20)
+            cameraModel.currentGame.followMeTarget = firstTarget
+            
+            let utterance = AVSpeechUtterance(string: "Wirf die \(firstTarget)")
+            utterance.voice = AVSpeechSynthesisVoice(language: "de-DE")
+            cameraModel.synthesizer.speak(utterance)
+            
+        } else {
+            // ⬇️ ALTER 301/501 Code
+            guard let start = selectedGame else { return }
+            if players.isEmpty { players = ["Player 1"] }
+            remainingScores = Array(repeating: start, count: players.count)
+            remaining = start
+        }
+        
+        cameraModel.startCapturing { cameraModel.uploadImageToServer($0) }
+     
+    }*/
     private func stopGame() {
         cameraModel.isGameActive = false
         cameraModel.stopCapturing()

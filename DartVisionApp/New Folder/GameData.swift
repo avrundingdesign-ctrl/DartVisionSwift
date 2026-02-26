@@ -26,6 +26,9 @@ struct GameData {
     
     // Der Rest bleibt gleich
     var keypoints: Keypoints? = nil
+    var followMeTarget: Int? = nil
+    var followMeStreak: Int = 0
+    var followMeHighscore: Int = 0
     var detectedDarts: [DartData] = []
     var dartScores: [Int] = []
 }
