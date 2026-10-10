@@ -33,3 +33,11 @@ fastlane/test_output/
 *.swp
 *.lock
 .idea/
+
+# Secrets (niemals committen)
+key321*
+id_rsa*
+id_ed25519*
+*.pem
+*.p12
+*.key
